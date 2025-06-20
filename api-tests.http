@@ -1,0 +1,190 @@
+### Cultivest Backend API Tests
+
+@baseUrl=http://localhost:8081
+
+
+### 1. Hello World
+GET {{baseUrl}}/hello
+
+# --- User Management & Authentication ---
+
+### 1. Register a new user (Request OTP)
+POST {{baseUrl}}/auth/signup
+Content-Type: application/json
+
+{
+  "phoneNumber": "+15551234567"
+
+}
+
+### 2. Verify OTP for signup/login
+POST {{baseUrl}}/auth/verify-otp
+Content-Type: application/json
+
+    {      "userID": "user_1718870783100",  "otpCode": "123456"
+}
+
+### 3. User Login (Request OTP)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "+15551234567"
+}
+
+### 4. Process KYC (assuming user is authenticated, might need Authorization header)
+# @name kycRequest
+POST {{baseUrl}}/user/kyc
+Content-Type: application/json
+# Authorization: Bearer {{auth_token}}  // Uncomment and replace with token after login/verify
+
+{
+  "name": "Jane Doe",
+  "country": "US"
+}
+
+### 5. Get User Profile (Requires Authentication)
+# @name getProfile
+GET {{baseUrl}}/user/profile
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token after login/verify
+
+
+# --- Wallet Management (Custodial) ---
+# Note: Wallet creation will likely be internal/automated upon signup.
+
+### 6. Get Wallet Balance (Requires Authentication)
+# @name getWalletBalance
+GET {{baseUrl}}/wallet/balance
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+
+# --- Fiat-to-USDCa Deposit ---
+
+### 7. Initiate Deposit (requires Authentication)
+# @name initiateDeposit
+POST {{baseUrl}}/deposit/initiate
+Content-Type: application/json
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+{
+  "amount": 10,
+  "fiatCurrency": "USD",
+  "paymentMethod": "MoonPay" // or "Flutterwave"
+}
+
+### 8. Simulate Deposit Webhook (for testing your backend's webhook endpoint)
+# This would typically be sent by MoonPay/Flutterwave, not directly by your frontend
+# You'd need to mock the structure they send. Example for MoonPay:
+POST {{baseUrl}}/deposit/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "external_tx_id_from_moonpay_or_flutterwave",
+    "status": "completed",
+    "fiatAmount": 10,
+    "cryptoAmount": 9.95,
+    "fiatCurrency": "USD",
+    "cryptoCurrency": "USDCa",
+    "address": "ALGOGRAND_USER_WALLET_ADDRESS"
+  },
+  "signature": "your_webhook_secret_signature" // IMPORTANT for verification
+}
+
+
+# --- Yield Investment ---
+
+### 9. Initiate Investment (Requires Authentication)
+# @name initiateInvestment
+POST {{baseUrl}}/investment/initiate
+Content-Type: application/json
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+{
+  "amountUSDCa": 5
+}
+
+### 10. Get Investment Positions (Requires Authentication)
+# @name getInvestmentPositions
+GET {{baseUrl}}/investment/positions
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+
+# --- Gamified Dashboard ---
+
+### 11. Get Dashboard Data (Requires Authentication)
+# @name getDashboardData
+GET {{baseUrl}}/dashboard/data
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+
+# --- Educational Components ---
+
+### 12. Get Educational Content
+# @name getEducationalContent
+GET {{baseUrl}}/education/content?type=video&id=someVideoId
+
+
+### 13. Submit Quiz Results (Requires Authentication)
+# @name submitQuizResults
+POST {{baseUrl}}/education/quiz/submit
+Content-Type: application/json
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+{
+  "contentID": "quiz_safe_saver",
+  "userAnswers": [
+    {"questionId": "q1", "answer": "A"},
+    {"questionId": "q2", "answer": "B"}
+  ]
+}
+
+# --- Withdrawal ---
+
+### 14. Initiate Withdrawal (Requires Authentication)
+# @name initiateWithdrawal
+POST {{baseUrl}}/withdrawal/initiate
+Content-Type: application/json
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+{
+  "amountUSDCa": 2,
+  "bankDetails": {
+    "accountName": "John Doe",
+    "accountNumber": "123456789",
+    "bankName": "Bank of America",
+    "routingNumber": "987654321"
+  },
+  "fiatCurrency": "USD"
+}
+
+### 15. Simulate Withdrawal Webhook (for testing your backend's webhook endpoint)
+# This would typically be sent by MoonPay/Flutterwave
+POST {{baseUrl}}/withdrawal/webhook
+Content-Type: application/json
+
+{
+  "type": "payout_status_change",
+  "data": {
+    "id": "external_payout_id",
+    "status": "completed",
+    "fiatAmount": 2,
+    "fiatCurrency": "USD",
+    "bankAccount": "..."
+  },
+  "signature": "your_webhook_secret_signature"
+}
+
+# --- AI Integration ---
+
+### 16. Get AI Round-up Suggestion (Requires Authentication)
+# @name getAIRoundupSuggestion
+POST {{baseUrl}}/ai/roundup_suggestion
+Content-Type: application/json
+# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+
+{
+  "spendingAmount": 3.50,
+  "spendingCategory": "Coffee"
+}
