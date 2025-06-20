@@ -1,18 +1,14 @@
-export async function POST(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.post('/', async (req, res) => {
   try {
-    const body = await request.json();
-    const { userID, amount, currency, provider } = body;
+    const { userID, amount, currency, provider } = req.body;
 
     if (!userID || !amount || !currency || !provider) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Missing required fields: userID, amount, currency, provider' 
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return res.status(400).json({
+        error: 'Missing required fields: userID, amount, currency, provider'
+      });
     }
 
     // Mock deposit initiation
@@ -29,18 +25,14 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     };
 
-    return Response.json({
+    return res.json({
       success: true,
       message: 'Deposit initiated successfully',
       deposit: mockDeposit,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router;

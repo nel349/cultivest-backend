@@ -1,16 +1,12 @@
-export async function POST(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.post('/', async (req, res) => {
   try {
-    const body = await request.json();
-    const { userID, yieldAmount } = body;
+    const { userID, yieldAmount } = req.body;
 
     if (!userID || yieldAmount === undefined) {
-      return new Response(
-        JSON.stringify({ error: 'Missing userID or yieldAmount' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return res.status(400).json({ error: 'Missing userID or yieldAmount' });
     }
 
     // Mock push notification sending
@@ -28,18 +24,14 @@ export async function POST(request: Request) {
       delivered: true,
     };
 
-    return Response.json({
+    return res.json({
       success: true,
       message: 'Daily yield notification sent',
       notification: mockNotification,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router;

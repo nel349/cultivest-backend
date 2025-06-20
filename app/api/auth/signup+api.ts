@@ -1,19 +1,15 @@
-export async function POST(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.post('/', async (req, res) => {
   try {
-    const body = await request.json();
-    const { phoneNumber, name, country } = body;
+    const { phoneNumber, name, country } = req.body;
 
     // Validate required fields
     if (!phoneNumber || !name || !country) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Missing required fields: phoneNumber, name, country' 
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return res.status(400).json({
+        error: 'Missing required fields: phoneNumber, name, country'
+      });
     }
 
     // Mock user creation and OTP sending
@@ -27,19 +23,15 @@ export async function POST(request: Request) {
       otpCode: '123456', // In production, this would be generated and sent via SMS
     };
 
-    return Response.json({
+    return res.json({
       success: true,
       message: 'OTP sent successfully',
       userID: mockUser.userID,
       otpSent: true,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router;

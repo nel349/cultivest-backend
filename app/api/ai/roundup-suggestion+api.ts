@@ -1,16 +1,12 @@
-export async function POST(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.post('/', async (req, res) => {
   try {
-    const body = await request.json();
-    const { userID, transactionAmount, merchantName } = body;
+    const { userID, transactionAmount, merchantName } = req.body;
 
     if (!userID || !transactionAmount) {
-      return new Response(
-        JSON.stringify({ error: 'Missing userID or transactionAmount' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return res.status(400).json({ error: 'Missing userID or transactionAmount' });
     }
 
     // Mock Claude 4 round-up suggestion
@@ -35,17 +31,13 @@ export async function POST(request: Request) {
       generatedAt: new Date().toISOString(),
     };
 
-    return Response.json({
+    return res.json({
       success: true,
       suggestion: mockSuggestion,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router;

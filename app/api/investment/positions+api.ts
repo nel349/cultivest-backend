@@ -1,16 +1,12 @@
-export async function GET(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.get('/', async (req, res) => {
   try {
-    const url = new URL(request.url);
-    const userID = url.searchParams.get('userID');
+    const userID = req.query.userID;
 
     if (!userID) {
-      return new Response(
-        JSON.stringify({ error: 'User ID is required' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return res.status(400).json({ error: 'User ID is required' });
     }
 
     // Mock investment positions
@@ -27,19 +23,15 @@ export async function GET(request: Request) {
       },
     ];
 
-    return Response.json({
+    return res.json({
       success: true,
       positions: mockPositions,
       totalInvested: 5.00,
       totalYieldEarned: 0.015,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router;

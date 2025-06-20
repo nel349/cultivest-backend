@@ -1,7 +1,9 @@
-export async function POST(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.post('/', async (req, res) => {
   try {
-    const body = await request.json();
-    const { depositID, status, transactionHash } = body;
+    const { depositID, status, transactionHash } = req.body;
 
     // Mock webhook processing
     if (status === 'completed') {
@@ -13,25 +15,21 @@ export async function POST(request: Request) {
         processedAt: new Date().toISOString(),
       };
 
-      return Response.json({
+      return res.json({
         success: true,
         message: 'Deposit processed successfully',
         result: mockResult,
       });
     }
 
-    return Response.json({
+    return res.json({
       success: true,
       message: 'Webhook received',
       status,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router; 

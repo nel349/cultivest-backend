@@ -1,16 +1,12 @@
-export async function POST(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.post('/', async (req, res) => {
   try {
-    const body = await request.json();
-    const { userID, contentID, answers } = body;
+    const { userID, contentID, answers } = req.body;
 
     if (!userID || !contentID || !answers) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
     // Mock quiz grading (correct answers: [1, 1, 1])
@@ -44,18 +40,14 @@ export async function POST(request: Request) {
       };
     }
 
-    return Response.json({
+    return res.json({
       success: true,
       result: mockResult,
       badgeAwarded,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router; 

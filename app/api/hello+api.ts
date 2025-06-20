@@ -1,4 +1,9 @@
-export function GET(request: Request) {
-    return Response.json({ hello: 'world' });
-  }
+import express from 'express';
+const router = express.Router();
+
+router.get('/', (req, res) => {
+  res.json({ hello: 'world' });
+});
+
+export default router;
   

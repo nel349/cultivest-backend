@@ -1,4 +1,7 @@
-export async function GET(request: Request) {
+import express from 'express';
+const router = express.Router();
+
+router.get('/', async (req, res) => {
   try {
     // Mock educational content
     const mockContent = [
@@ -35,17 +38,13 @@ export async function GET(request: Request) {
       },
     ];
 
-    return Response.json({
+    return res.json({
       success: true,
       content: mockContent,
     });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return res.status(500).json({ error: 'Internal server error' });
   }
-}
+});
+
+export default router; 
