@@ -1,6 +1,6 @@
 ### Cultivest Backend API Tests
 
-@baseUrl=http://localhost:8081
+@baseUrl=http://localhost:3000/api/v1
 
 
 ### 1. Hello World
@@ -8,20 +8,23 @@ GET {{baseUrl}}/hello
 
 # --- User Management & Authentication ---
 
-### 1. Register a new user (Request OTP)
+### 1. Register a new user (Request OTP) - DATABASE INTEGRATION TEST
 POST {{baseUrl}}/auth/signup
 Content-Type: application/json
 
 {
-  "phoneNumber": "+15551234567"
-
+  "phoneNumber": "+15551234568",
+  "name": "Test User1",
+  "country": "USA"
 }
 
-### 2. Verify OTP for signup/login
+### 2. Verify OTP for signup/login - DATABASE INTEGRATION TEST
 POST {{baseUrl}}/auth/verify-otp
 Content-Type: application/json
 
-    {      "userID": "user_1718870783100",  "otpCode": "123456"
+{
+  "userID": "91a1269d-eda9-4720-817e-ed57a880bdcd",
+  "otpCode": "664043"
 }
 
 ### 3. User Login (Request OTP)

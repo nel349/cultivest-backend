@@ -49,29 +49,36 @@ app.get('/', (req, res) => {
   res.status(200).json({ message: 'Cultivest Backend API is running (TypeScript)!' });
 });
 
-// TODO: Import and use API routes from app/api directory
-// Example: import authRoutes from './app/api/auth';
-// app.use('/auth', authRoutes);
+// Add a test route for the API
+app.get('/api/v1/test', (req, res) => {
+  res.status(200).json({ message: 'Cultivest Backend API Test is running (TypeScript)!' });
+});
 
-app.use('/hello', helloRoutes);
-app.use('/auth/login', loginRoutes);
-app.use('/auth/signup', signupRoutes);
-app.use('/auth/verify-otp', verifyOtpRoutes);
-app.use('/withdrawal/initiate', withdrawalInitiateRoutes);
-app.use('/withdrawal/webhook', withdrawalWebhookRoutes);
-app.use('/investment/initiate', investmentInitiateRoutes);
-app.use('/investment/positions', investmentPositionsRoutes);
-app.use('/notifications/send-daily-yield', notificationsSendDailyYieldRoutes);
-app.use('/transaction/receipt/send', transactionReceiptSendRoutes);
-app.use('/user/kyc', userKycRoutes);
-app.use('/user/profile', userProfileRoutes);
-app.use('/wallet/balance', walletBalanceRoutes);
-app.use('/dashboard/data', dashboardDataRoutes);
-app.use('/deposit/initiate', depositInitiateRoutes);
-app.use('/deposit/webhook', depositWebhookRoutes);
-app.use('/education/content', educationContentRoutes);
-app.use('/education/quiz/submit', educationQuizSubmitRoutes);
-app.use('/ai/roundup-suggestion', aiRoundupSuggestionRoutes);
+// Create a central API router
+const apiRouter = express.Router();
+
+// Add all API routes to the router
+apiRouter.use('/hello', helloRoutes);
+apiRouter.use('/auth/login', loginRoutes);
+apiRouter.use('/auth/signup', signupRoutes);
+apiRouter.use('/auth/verify-otp', verifyOtpRoutes);
+apiRouter.use('/withdrawal/initiate', withdrawalInitiateRoutes);
+apiRouter.use('/withdrawal/webhook', withdrawalWebhookRoutes);
+apiRouter.use('/investment/initiate', investmentInitiateRoutes);
+apiRouter.use('/investment/positions', investmentPositionsRoutes);
+apiRouter.use('/notifications/send-daily-yield', notificationsSendDailyYieldRoutes);
+apiRouter.use('/transaction/receipt/send', transactionReceiptSendRoutes);
+apiRouter.use('/user/kyc', userKycRoutes);
+apiRouter.use('/user/profile', userProfileRoutes);
+apiRouter.use('/wallet/balance', walletBalanceRoutes);
+apiRouter.use('/dashboard/data', dashboardDataRoutes);
+apiRouter.use('/deposit/initiate', depositInitiateRoutes);
+apiRouter.use('/deposit/webhook', depositWebhookRoutes);
+apiRouter.use('/education/content', educationContentRoutes);
+apiRouter.use('/education/quiz/submit', educationQuizSubmitRoutes);
+apiRouter.use('/ai/roundup-suggestion', aiRoundupSuggestionRoutes);
+
+app.use('/api/v1', apiRouter);
 
 // Start the server
 app.listen(PORT, () => {
