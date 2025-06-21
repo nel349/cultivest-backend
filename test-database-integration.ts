@@ -12,6 +12,7 @@ interface SignupResponse {
   message: string;
   userID: string;
   otpSent: boolean;
+  smsProvider: 'twilio' | 'mock';
   otp?: string;
   error?: string;
 }
@@ -32,7 +33,7 @@ interface VerifyResponse {
   };
   error?: string;
 }
-const TEST_PHONE = '+15551234999';
+const TEST_PHONE = '+15551234999'; // Different from Twilio phone number
 const TEST_USER = {
   phoneNumber: TEST_PHONE,
   name: 'Integration Test User',
@@ -70,7 +71,12 @@ async function testDatabaseIntegration() {
       throw new Error(`Invalid OTP format: ${signupData.otp}`);
     }
 
-    console.log('✅ ASSERTIONS PASSED: UserID format, OTP format');
+    // ASSERT: SMS provider is specified
+    if (!['twilio', 'mock'].includes(signupData.smsProvider)) {
+      throw new Error(`Invalid SMS provider: ${signupData.smsProvider}`);
+    }
+
+    console.log(`✅ ASSERTIONS PASSED: UserID format, OTP format, SMS provider: ${signupData.smsProvider}`);
 
     const { userID, otp } = signupData;
     console.log(`📱 Generated OTP: ${otp || 'Check server console'} for user: ${userID}\n`);

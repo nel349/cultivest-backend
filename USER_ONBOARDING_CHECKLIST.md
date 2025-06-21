@@ -48,10 +48,10 @@ Based on FEATURES.md requirements vs current mock implementations.
 ### Current: Hardcoded OTP "123456"
 ### Required: SMS provider integration with database storage
 
-- [ ] **SMS Provider Setup**
-  - [ ] Choose SMS provider (Twilio recommended)
-  - [ ] Add SMS provider credentials to .env
-  - [ ] Create SMS sending utility function
+- [x] ✅ **SMS Provider Setup**
+  - [x] Choose SMS provider (Twilio implemented with mock fallback)
+  - [x] Add SMS provider credentials to .env
+  - [x] Create SMS sending utility function (`utils/sms.ts`)
 
 - [x] ✅ **OTP Generation & Storage**
   - [x] Generate random 6-digit OTP codes (`signup+api.ts:118`)

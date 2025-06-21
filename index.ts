@@ -22,6 +22,7 @@ import depositWebhookRoutes from './app/api/deposit/webhook+api';
 import educationContentRoutes from './app/api/education/content+api';
 import educationQuizSubmitRoutes from './app/api/education/quiz/submit+api';
 import aiRoundupSuggestionRoutes from './app/api/ai/roundup-suggestion+api';
+import debugTwilioStatusRoutes from './app/api/debug/twilio-status+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -77,6 +78,7 @@ apiRouter.use('/deposit/webhook', depositWebhookRoutes);
 apiRouter.use('/education/content', educationContentRoutes);
 apiRouter.use('/education/quiz/submit', educationQuizSubmitRoutes);
 apiRouter.use('/ai/roundup-suggestion', aiRoundupSuggestionRoutes);
+apiRouter.use('/debug/twilio-status', debugTwilioStatusRoutes);
 
 app.use('/api/v1', apiRouter);
 

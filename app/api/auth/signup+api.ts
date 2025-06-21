@@ -1,5 +1,6 @@
 import express from 'express';
 import { supabase, handleDatabaseError, testDatabaseConnection } from '../../../utils/supabase';
+import { sendOTPSMS, getTwilioStatus } from '../../../utils/sms';
 
 const router = express.Router();
 
@@ -146,15 +147,23 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // TODO: Send actual SMS with OTP code
-    // For now, log it to console (REMOVE IN PRODUCTION)
-    console.log(`OTP for ${phoneNumber}: ${otpCode} (expires at ${expiresAt})`);
+    // Send OTP via SMS (Twilio or console fallback)
+    console.log(`📱 Sending OTP for ${phoneNumber}: ${otpCode} (expires at ${expiresAt})`);
+    const smsResult = await sendOTPSMS(phoneNumber, otpCode);
+    
+    if (!smsResult.success) {
+      console.warn(`⚠️ SMS sending failed: ${smsResult.error}`);
+      // Continue anyway - OTP is stored in database and logged to console
+    } else {
+      console.log(`✅ SMS sent via ${smsResult.provider} - MessageID: ${smsResult.messageId}`);
+    }
 
     return res.json({
       success: true,
       message: 'OTP sent successfully',
       userID: userId,
       otpSent: true,
+      smsProvider: smsResult.provider,
       // In development, include OTP for testing (REMOVE IN PRODUCTION)
       ...(process.env.NODE_ENV === 'development' && { otp: otpCode })
     });

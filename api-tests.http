@@ -6,6 +6,9 @@
 ### 1. Hello World
 GET {{baseUrl}}/hello
 
+### Check Twilio SMS Status
+GET {{baseUrl}}/debug/twilio-status
+
 # --- User Management & Authentication ---
 
 ### 1. Register a new user (Request OTP) - DATABASE INTEGRATION TEST
@@ -13,8 +16,8 @@ POST {{baseUrl}}/auth/signup
 Content-Type: application/json
 
 {
-  "phoneNumber": "+15551234568",
-  "name": "Test User1",
+  "phoneNumber": "+19154082030",
+  "name": "Norman E. Lopez",
   "country": "USA"
 }
 
