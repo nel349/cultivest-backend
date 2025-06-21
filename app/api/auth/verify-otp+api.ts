@@ -1,5 +1,6 @@
 import express from 'express';
 import { supabase, handleDatabaseError } from '../../../utils/supabase';
+import { generateWallet, getUserWallet } from '../../../utils/wallet';
 import jwt from 'jsonwebtoken';
 
 const router = express.Router();
@@ -117,14 +118,24 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Check if user has a wallet
-    const { data: wallet, error: walletError } = await supabase
-      .from('wallets')
-      .select('wallet_id, algorand_address')
-      .eq('user_id', userID)
-      .single();
+    // Check if user has a wallet and create one if they don't
+    let wallet = await getUserWallet(userID);
+    let hasWallet = !!wallet;
 
-    const hasWallet = !walletError && wallet;
+    // Auto-create wallet for verified users
+    if (!hasWallet) {
+      console.log(`🔐 Creating wallet for newly verified user: ${userID}`);
+      const walletResult = await generateWallet(userID);
+      
+      if (walletResult.success) {
+        wallet = await getUserWallet(userID);
+        hasWallet = !!wallet;
+        console.log(`✅ Wallet created successfully: ${wallet?.algorandAddress}`);
+      } else {
+        console.warn(`⚠️ Wallet creation failed: ${walletResult.error}`);
+        // Continue anyway - wallet creation failure shouldn't block login
+      }
+    }
 
     // Generate JWT token
     const authToken = generateJWT(user.user_id, user.phone_number);
@@ -148,7 +159,7 @@ router.post('/', async (req, res) => {
         kycStatus: user.kyc_status,
         verified: true,
         walletCreated: hasWallet,
-        walletAddress: wallet?.algorand_address || null
+        walletAddress: wallet?.algorandAddress || null
       }
     });
 

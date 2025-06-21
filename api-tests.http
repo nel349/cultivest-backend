@@ -9,6 +9,9 @@ GET {{baseUrl}}/hello
 ### Check Twilio SMS Status
 GET {{baseUrl}}/debug/twilio-status
 
+### Check Algorand Network Status
+GET {{baseUrl}}/debug/algorand-status
+
 # --- User Management & Authentication ---
 
 ### 1. Register a new user (Request OTP) - DATABASE INTEGRATION TEST
@@ -19,6 +22,34 @@ Content-Type: application/json
   "phoneNumber": "+19154082030",
   "name": "Norman E. Lopez",
   "country": "USA"
+}
+
+### Manual Wallet Creation Test
+POST {{baseUrl}}/wallet/create
+Content-Type: application/json
+
+{
+  "userId": "34f9176d-172d-431d-adb2-000d6459d4d2"
+}
+
+### Algorand status
+GET {{baseUrl}}/debug/algorand-status
+
+### Wallet Balance (Database only)
+GET {{baseUrl}}/wallet/balance?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e
+
+### Wallet Balance (With Live On-Chain Data)
+GET {{baseUrl}}/wallet/balance?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e&live=true
+
+### Live Balance by Address
+GET {{baseUrl}}/wallet/balance/live/6ABVCEUUO5IX6DUFJRZANIKKY7QPOWQRETQHRW5IK4AN2TKUXKBF5LFB6M
+
+### Sync Database Balance with On-Chain
+POST {{baseUrl}}/wallet/balance/sync
+Content-Type: application/json
+
+{
+  "userId": "1c8fb4d3-c4e0-4184-8e7b-d5347019d28e"
 }
 
 ### 2. Verify OTP for signup/login - DATABASE INTEGRATION TEST

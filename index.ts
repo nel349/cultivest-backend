@@ -23,6 +23,9 @@ import educationContentRoutes from './app/api/education/content+api';
 import educationQuizSubmitRoutes from './app/api/education/quiz/submit+api';
 import aiRoundupSuggestionRoutes from './app/api/ai/roundup-suggestion+api';
 import debugTwilioStatusRoutes from './app/api/debug/twilio-status+api';
+import debugAlgorandStatusRoutes from './app/api/debug/algorand-status+api';
+import debugWalletRawRoutes from './app/api/debug/wallet-raw+api';
+import walletCreateRoutes from './app/api/wallet/create+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -79,6 +82,9 @@ apiRouter.use('/education/content', educationContentRoutes);
 apiRouter.use('/education/quiz/submit', educationQuizSubmitRoutes);
 apiRouter.use('/ai/roundup-suggestion', aiRoundupSuggestionRoutes);
 apiRouter.use('/debug/twilio-status', debugTwilioStatusRoutes);
+apiRouter.use('/debug/algorand-status', debugAlgorandStatusRoutes);
+apiRouter.use('/debug/wallet-raw', debugWalletRawRoutes);
+apiRouter.use('/wallet/create', walletCreateRoutes);
 
 app.use('/api/v1', apiRouter);
 
