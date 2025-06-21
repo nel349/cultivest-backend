@@ -15,3 +15,4 @@ build/
 # OS generated files
 .DS_Store
 thumbs.db
+.claude/
