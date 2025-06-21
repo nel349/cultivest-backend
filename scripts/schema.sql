@@ -160,6 +160,35 @@ CREATE TABLE IF NOT EXISTS otp_sessions (
 CREATE INDEX IF NOT EXISTS idx_otp_phone_number ON otp_sessions(phone_number);
 CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON otp_sessions(expires_at);
 
+-- 10. Create Deposits table for MoonPay integration
+CREATE TABLE IF NOT EXISTS deposits (
+  deposit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  wallet_id UUID REFERENCES wallets(wallet_id) ON DELETE SET NULL,
+  amount_usd DECIMAL(18,2) NOT NULL,
+  amount_algo DECIMAL(18,6),
+  amount_usdca DECIMAL(18,6),
+  moonpay_transaction_id VARCHAR(128),
+  moonpay_url TEXT,
+  status VARCHAR(20) DEFAULT 'pending_payment' CHECK (status IN (
+    'pending_payment', 'algo_received', 'converting', 'completed', 'failed', 'cancelled'
+  )),
+  conversion_rate DECIMAL(18,6), -- ALGO to USDCa rate used
+  fees_paid DECIMAL(18,6), -- Total fees in USD
+  algorand_tx_id VARCHAR(128), -- DEX conversion transaction
+  error_message TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '24 hours'),
+  completed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for Deposits table
+CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits(user_id);
+CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits(status);
+CREATE INDEX IF NOT EXISTS idx_deposits_moonpay_tx_id ON deposits(moonpay_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_deposits_created_at ON deposits(created_at);
+
 -- Auto-cleanup function for expired OTP sessions
 CREATE OR REPLACE FUNCTION cleanup_expired_otp_sessions()
 RETURNS void AS $$
@@ -168,7 +197,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 10. Enable Row Level Security (RLS) on user tables
+-- 11. Enable Row Level Security (RLS) on user tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wallets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
@@ -176,6 +205,7 @@ ALTER TABLE investment_positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_badges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_quiz_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deposits ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
 -- Note: DROP POLICY IF EXISTS first, then CREATE POLICY to handle re-runs
@@ -195,6 +225,8 @@ DROP POLICY IF EXISTS "Service role can manage user badges" ON user_badges;
 DROP POLICY IF EXISTS "Users can view own quiz results" ON user_quiz_results;
 DROP POLICY IF EXISTS "Users can insert own quiz results" ON user_quiz_results;
 DROP POLICY IF EXISTS "Service role can manage OTP sessions" ON otp_sessions;
+DROP POLICY IF EXISTS "Users can view own deposits" ON deposits;
+DROP POLICY IF EXISTS "Service role can manage deposits" ON deposits;
 DROP POLICY IF EXISTS "Badges are publicly readable" ON badges;
 DROP POLICY IF EXISTS "Educational content is publicly readable" ON educational_content;
 
@@ -248,6 +280,13 @@ CREATE POLICY "Users can insert own quiz results" ON user_quiz_results
 CREATE POLICY "Service role can manage OTP sessions" ON otp_sessions
   FOR ALL WITH CHECK (true);
 
+-- Deposits policies
+CREATE POLICY "Users can view own deposits" ON deposits
+  FOR SELECT USING (user_id IN (SELECT user_id FROM users WHERE supabase_auth_id = auth.uid()));
+
+CREATE POLICY "Service role can manage deposits" ON deposits
+  FOR ALL WITH CHECK (true);
+
 -- Public read access for badges and published educational content
 CREATE POLICY "Badges are publicly readable" ON badges 
   FOR SELECT USING (true);
@@ -270,6 +309,7 @@ CREATE TRIGGER set_timestamp_wallets BEFORE UPDATE ON wallets FOR EACH ROW EXECU
 CREATE TRIGGER set_timestamp_transactions BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_investment_positions BEFORE UPDATE ON investment_positions FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
 CREATE TRIGGER set_timestamp_educational_content BEFORE UPDATE ON educational_content FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
+CREATE TRIGGER set_timestamp_deposits BEFORE UPDATE ON deposits FOR EACH ROW EXECUTE PROCEDURE trigger_set_timestamp();
 
 -- 12. Insert default badges
 INSERT INTO badges (name, description, criteria, category) VALUES

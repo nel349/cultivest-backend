@@ -15,7 +15,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const checkTablesExist = async () => {
-  const tables = ['users', 'badges', 'wallets', 'otp_sessions'];
+  const tables = ['users', 'badges', 'wallets', 'otp_sessions', 'deposits'];
   const tableStatus: { [key: string]: boolean } = {};
   
   for (const tableName of tables) {
@@ -165,6 +165,28 @@ CREATE TABLE IF NOT EXISTS badges (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS deposits (
+  deposit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  wallet_id UUID REFERENCES wallets(wallet_id) ON DELETE SET NULL,
+  amount_usd DECIMAL(18,2) NOT NULL,
+  amount_algo DECIMAL(18,6),
+  amount_usdca DECIMAL(18,6),
+  moonpay_transaction_id VARCHAR(128),
+  moonpay_url TEXT,
+  status VARCHAR(20) DEFAULT 'pending_payment' CHECK (status IN (
+    'pending_payment', 'algo_received', 'converting', 'completed', 'failed', 'cancelled'
+  )),
+  conversion_rate DECIMAL(18,6),
+  fees_paid DECIMAL(18,6),
+  algorand_tx_id VARCHAR(128),
+  error_message TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '24 hours'),
+  completed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_phone_number ON users(phone_number);
 CREATE INDEX IF NOT EXISTS idx_users_supabase_auth_id ON users(supabase_auth_id);
@@ -172,7 +194,10 @@ CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_algorand_address ON wallets(algorand_address);
 CREATE INDEX IF NOT EXISTS idx_otp_phone_number ON otp_sessions(phone_number);
 CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON otp_sessions(expires_at);
-CREATE INDEX IF NOT EXISTS idx_badges_category ON badges(category);`);
+CREATE INDEX IF NOT EXISTS idx_badges_category ON badges(category);
+CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits(user_id);
+CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits(status);
+CREATE INDEX IF NOT EXISTS idx_deposits_moonpay_tx_id ON deposits(moonpay_transaction_id);`);
     console.log('```\n');
     
     console.log('⏳ After running the SQL, come back and run: npm run db:init');

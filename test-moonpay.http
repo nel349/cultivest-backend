@@ -1,0 +1,39 @@
+# MoonPay Integration Tests
+
+### 1. Test deposit initiate (requires user_id from auth system)
+POST {{baseUrl}}/deposit/initiate
+Authorization: Bearer 1c8fb4d3-c4e0-4184-8e7b-d5347019d28e
+Content-Type: application/json
+
+{
+  "amountUSD": 10,
+  "targetCurrency": "usdca"
+}
+
+### 2. Test deposit status check
+GET {{baseUrl}}/deposit/status/{{depositId}}
+Authorization: Bearer 1c8fb4d3-c4e0-4184-8e7b-d5347019d28e
+
+### 3. Test MoonPay webhook (for testing purposes)
+POST {{baseUrl}}/deposit/webhook/moonpay
+Content-Type: application/json
+moonpay-signature: test_signature
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "moonpay_test_123",
+    "status": "completed",
+    "cryptoAmount": 25.5,
+    "cryptoCurrency": "algo",
+    "walletAddress": "test_wallet_address",
+    "externalTransactionId": "cultivest_test_deposit_id"
+  }
+}
+
+### 4. Test MoonPay fee calculation (test endpoint)
+GET {{baseUrl}}/deposit/calculate-fees?amountUSD=10
+
+### Variables
+@baseUrl = http://localhost:3000/api/v1
+@depositId = replace_with_actual_deposit_id
