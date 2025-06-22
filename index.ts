@@ -1,4 +1,4 @@
-import express from 'express';
+  import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
@@ -28,6 +28,7 @@ import debugTwilioStatusRoutes from './app/api/debug/twilio-status+api';
 import debugAlgorandStatusRoutes from './app/api/debug/algorand-status+api';
 import debugWalletRawRoutes from './app/api/debug/wallet-raw+api';
 import walletCreateRoutes from './app/api/wallet/create+api';
+import moonpaySignUrlRoutes from './app/api/moonpay/sign-url+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -89,6 +90,7 @@ apiRouter.use('/debug/twilio-status', debugTwilioStatusRoutes);
 apiRouter.use('/debug/algorand-status', debugAlgorandStatusRoutes);
 apiRouter.use('/debug/wallet-raw', debugWalletRawRoutes);
 apiRouter.use('/wallet/create', walletCreateRoutes);
+apiRouter.use('/moonpay/sign-url', moonpaySignUrlRoutes);
 
 app.use('/api/v1', apiRouter);
 

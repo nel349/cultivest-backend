@@ -49,7 +49,7 @@ POST {{baseUrl}}/wallet/balance/sync
 Content-Type: application/json
 
 {
-  "userId": "1c8fb4d3-c4e0-4184-8e7b-d5347019d28e"
+  "userId": "34f9176d-172d-431d-adb2-000d6459d4d2"
 }
 
 ### 2. Verify OTP for signup/login - DATABASE INTEGRATION TEST
@@ -57,8 +57,8 @@ POST {{baseUrl}}/auth/verify-otp
 Content-Type: application/json
 
 {
-  "userID": "91a1269d-eda9-4720-817e-ed57a880bdcd",
-  "otpCode": "664043"
+  "userID": "34f9176d-172d-431d-adb2-000d6459d4d2",
+  "otpCode": "198857"
 }
 
 ### 3. User Login (Request OTP)

@@ -1,4 +1,6 @@
 # MoonPay Integration Tests
+@baseUrl = http://localhost:3000/api/v1
+
 
 ### 1. Test deposit initiate (requires user_id from auth system)
 POST {{baseUrl}}/deposit/initiate
@@ -33,6 +35,62 @@ moonpay-signature: test_signature
 
 ### 4. Test MoonPay fee calculation (test endpoint)
 GET {{baseUrl}}/deposit/calculate-fees?amountUSD=10
+
+### =================================
+### MOONPAY URL SIGNING TESTS
+### =================================
+
+### Step 1: First get a JWT token by logging in
+POST http://localhost:3000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "+11234567890",
+}
+
+### Step 2: Test MoonPay URL Signing Endpoint (replace YOUR_JWT_TOKEN_HERE with token from Step 1)
+POST http://localhost:3000/api/v1/moonpay/sign-url
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "url": "https://buy-sandbox.moonpay.com?apiKey=pk_test_123&currencyCode=algo&baseCurrencyAmount=50&walletAddress=ALGORAND_WALLET_ADDRESS_HERE"
+}
+
+### Step 3: Test with a more realistic URL (what your frontend would generate)
+POST http://localhost:3000/api/v1/moonpay/sign-url
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "url": "https://buy-sandbox.moonpay.com?apiKey=pk_test_your_key&flow=buy&environment=sandbox&currencyCode=algo&baseCurrencyAmount=25&walletAddress=SAMPLE_WALLET&theme=dark&colorCode=%2358CC02"
+}
+
+### Test with Invalid URL (should fail with 400)
+POST http://localhost:3000/api/v1/moonpay/sign-url
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "url": "https://buy-sandbox.moonpay.com"
+}
+
+### Test without Authorization (should fail with 401)
+POST http://localhost:3000/api/v1/moonpay/sign-url
+Content-Type: application/json
+
+{
+  "url": "https://buy-sandbox.moonpay.com?apiKey=pk_test_123&currencyCode=algo"
+}
+
+### Test with invalid token (should fail with 401)
+POST http://localhost:3000/api/v1/moonpay/sign-url
+Content-Type: application/json
+Authorization: Bearer invalid_token
+
+{
+  "url": "https://buy-sandbox.moonpay.com?apiKey=pk_test_123&currencyCode=algo"
+}
 
 ### Variables
 @baseUrl = http://localhost:3000/api/v1

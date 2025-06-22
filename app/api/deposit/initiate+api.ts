@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../../../utils/supabase';
 import { moonPayService } from '../../../utils/moonpay';
+import { verifyJWT } from '../../../utils/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -32,19 +33,25 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ error: 'Authorization token required' });
     }
 
-    // Extract user from JWT (simplified - in production, decode and verify JWT)
+    // Extract and verify JWT token
     const token = authHeader.split(' ')[1];
-    // For now, assume token contains user_id directly (implement JWT verification)
+    const decoded = verifyJWT(token);
+    
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid user token' });
+    }
+    
+    console.log('🔐 Authenticated user:', decoded.userId);
     
     // Get user from database
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('user_id, phone_number')
-      .eq('user_id', token) // Replace with JWT decode
+      .eq('user_id', decoded.userId)
       .single();
 
     if (userError || !user) {
-      return res.status(401).json({ error: 'Invalid user token' });
+      return res.status(401).json({ error: 'User not found' });
     }
 
     // Get user's wallet address

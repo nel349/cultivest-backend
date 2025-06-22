@@ -25,6 +25,15 @@ export class MoonPayService {
       baseUrl: process.env.MOONPAY_BASE_URL || 'https://buy-sandbox.moonpay.com',
       apiUrl: process.env.MOONPAY_API_URL || 'https://api.moonpay.com'
     };
+
+    // Debug: Log configuration (safely)
+    console.log('🌙 MoonPay Service Configuration:');
+    console.log('- API Key present:', !!this.config.apiKey);
+    console.log('- API Key starts with:', this.config.apiKey.substring(0, 8) + '...');
+    console.log('- Secret Key present:', !!this.config.secretKey);
+    console.log('- Secret Key starts with:', this.config.secretKey.substring(0, 8) + '...');
+    console.log('- Base URL:', this.config.baseUrl);
+    console.log('- API URL:', this.config.apiUrl);
   }
 
   /**
@@ -42,10 +51,13 @@ export class MoonPayService {
       colorCode: '#10B981' // Cultivest brand green
     };
 
-    // Remove undefined values
-    const filteredParams = Object.fromEntries(
-      Object.entries(baseParams).filter(([_, value]) => value !== undefined)
-    );
+    // Remove undefined values and ensure proper typing
+    const filteredParams: Record<string, string> = {};
+    Object.entries(baseParams).forEach(([key, value]) => {
+      if (value !== undefined) {
+        filteredParams[key] = value;
+      }
+    });
 
     // Create query string
     const queryString = new URLSearchParams(filteredParams).toString();
@@ -62,7 +74,7 @@ export class MoonPayService {
   /**
    * Create HMAC signature for MoonPay widget URL
    */
-  private createSignature(queryString: string): string {
+  createSignature(queryString: string): string {
     return crypto
       .createHmac('sha256', this.config.secretKey)
       .update(queryString)
