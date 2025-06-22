@@ -44,6 +44,7 @@ router.get('/', async (req, res) => {
         onChainBalance: wallet.onChainBalance ? {
           algo: wallet.onChainBalance.algo,
           usdca: wallet.onChainBalance.usdca,
+          isOptedIntoUSDCa: wallet.onChainBalance.isOptedIntoUSDCa,
           lastUpdated: wallet.onChainBalance.lastUpdated
         } : null
       }
