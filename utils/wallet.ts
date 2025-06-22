@@ -125,19 +125,30 @@ export const getOnChainBalance = async (algorandAddress: string) => {
     
     // Find USDCa asset balance
     let usdcaBalance = 0;
+    let isOptedIntoUSDCa = false;
+    
+    console.log(`🔍 Account has ${accountInfo.assets?.length || 0} assets:`, accountInfo.assets?.map((a: any) => a['asset-id']) || []);
+    
     if (accountInfo.assets && accountInfo.assets.length > 0) {
       const usdcaAsset = accountInfo.assets.find((asset: any) => asset['asset-id'] === usdcAssetId);
       if (usdcaAsset) {
+        isOptedIntoUSDCa = true;
         // USDCa has 6 decimal places
         usdcaBalance = usdcaAsset.amount / 1000000;
+        console.log(`✅ Found USDCa asset ${usdcAssetId}: ${usdcaBalance} USDCa`);
+      } else {
+        console.log(`❌ USDCa asset ${usdcAssetId} not found in wallet assets`);
       }
+    } else {
+      console.log(`❌ No assets found in wallet - not opted into USDCa yet`);
     }
     
-    console.log(`💰 On-chain balances - ALGO: ${algoBalance}, USDCa: ${usdcaBalance}`);
+    console.log(`💰 On-chain balances - ALGO: ${algoBalance}, USDCa: ${usdcaBalance} (opted in: ${isOptedIntoUSDCa})`);
     
     return {
       algo: algoBalance,
       usdca: usdcaBalance,
+      isOptedIntoUSDCa: isOptedIntoUSDCa,
       lastUpdated: new Date().toISOString()
     };
     

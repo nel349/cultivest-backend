@@ -29,6 +29,7 @@ import debugAlgorandStatusRoutes from './app/api/debug/algorand-status+api';
 import debugWalletRawRoutes from './app/api/debug/wallet-raw+api';
 import walletCreateRoutes from './app/api/wallet/create+api';
 import moonpaySignUrlRoutes from './app/api/moonpay/sign-url+api';
+import optInUsdcaRoutes from './app/api/debug/opt-in-usdca+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -91,6 +92,9 @@ apiRouter.use('/debug/algorand-status', debugAlgorandStatusRoutes);
 apiRouter.use('/debug/wallet-raw', debugWalletRawRoutes);
 apiRouter.use('/wallet/create', walletCreateRoutes);
 apiRouter.use('/moonpay/sign-url', moonpaySignUrlRoutes);
+
+// opt in usdca
+apiRouter.use('/debug/opt-in-usdca', optInUsdcaRoutes);
 
 app.use('/api/v1', apiRouter);
 

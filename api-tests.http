@@ -12,6 +12,23 @@ GET {{baseUrl}}/debug/twilio-status
 ### Check Algorand Network Status
 GET {{baseUrl}}/debug/algorand-status
 
+### Opt-in to USDCa (Debug Endpoint) - Requires Authentication
+POST {{baseUrl}}/debug/opt-in-usdca
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "userID": "34f9176d-172d-431d-adb2-000d6459d4d2"
+}
+
+### Opt-in to USDCa - TEST WITHOUT AUTH (if you bypass auth)
+POST {{baseUrl}}/debug/opt-in-usdca
+Content-Type: application/json
+
+{
+  "userID": "34f9176d-172d-431d-adb2-000d6459d4d2"
+}
+
 # --- User Management & Authentication ---
 
 ### 1. Register a new user (Request OTP) - DATABASE INTEGRATION TEST
@@ -43,6 +60,9 @@ GET {{baseUrl}}/wallet/balance?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e&live=
 
 ### Live Balance by Address
 GET {{baseUrl}}/wallet/balance/live/6ABVCEUUO5IX6DUFJRZANIKKY7QPOWQRETQHRW5IK4AN2TKUXKBF5LFB6M
+
+### Test with your wallet address
+GET {{baseUrl}}/wallet/balance/live/NWPHQ7ZQJJQKBVD5RY4HYSBXHI5SLXDTBH3MUYZ3LK4MRY6JBKVEVTQOHA
 
 ### Sync Database Balance with On-Chain
 POST {{baseUrl}}/wallet/balance/sync
