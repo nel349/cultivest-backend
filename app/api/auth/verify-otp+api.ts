@@ -21,10 +21,16 @@ const generateJWT = (userId: string, phoneNumber: string): string => {
 
 router.post('/', async (req, res) => {
   try {
+    console.log('🔐 OTP Verification Request:', {
+      body: req.body,
+      headers: req.headers['content-type']
+    });
+    
     const { userID, otpCode } = req.body;
 
     // Validate required fields
     if (!userID || !otpCode) {
+      console.error('❌ Missing required fields:', { userID: !!userID, otpCode: !!otpCode });
       return res.status(400).json({
         success: false,
         error: 'Missing userID or otpCode'
@@ -40,6 +46,8 @@ router.post('/', async (req, res) => {
     }
 
     // Find valid OTP session for this user
+    console.log(`🔍 Looking for OTP session for user: ${userID}, code: ${otpCode}`);
+    
     const { data: otpSession, error: otpError } = await supabase
       .from('otp_sessions')
       .select('*')
@@ -49,6 +57,17 @@ router.post('/', async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
+
+    console.log('🔍 OTP Session Query Result:', {
+      found: !!otpSession,
+      error: otpError?.message,
+      sessionData: otpSession ? {
+        otp_code: otpSession.otp_code,
+        expires_at: otpSession.expires_at,
+        attempts: otpSession.attempts,
+        verified: otpSession.verified
+      } : null
+    });
 
     if (otpError || !otpSession) {
       console.error('No valid OTP session found:', otpError);

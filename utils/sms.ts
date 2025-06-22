@@ -29,7 +29,7 @@ export interface SendSMSResult {
   success: boolean;
   messageId?: string;
   error?: string;
-  provider: 'twilio' | 'mock';
+  provider: 'twilio' | 'mock' | 'console';
 }
 
 /**
@@ -109,7 +109,7 @@ export const sendOTPSMS = async (
     return {
       success: false,
       error: (error as Error).message,
-      provider: 'twilio'
+      provider: 'console' // Indicate fallback to console logging
     };
   }
 };
@@ -118,7 +118,7 @@ export const sendOTPSMS = async (
  * Check if Twilio is properly configured
  */
 export const isTwilioConfigured = (): boolean => {
-  return isRealCredentials;
+  return isRealCredentials || false;
 };
 
 /**
