@@ -18,9 +18,10 @@ Cultivest democratizes access to stablecoin yields for Gen Z, millennials, and u
 
 ### Core Functionality
 - **User Authentication**: Phone-based signup with OTP verification
-- **KYC Integration**: Lightweight verification via MoonPay/Flutterwave
 - **Wallet Management**: Custodial Algorand wallets for USDCa
-- **Deposit/Withdrawal**: Fiat-to-crypto conversion with local payment methods
+- **Testnet Development**: Complete faucet-based funding workaround
+- **Asset Management**: USDCa opt-in automation and balance detection
+- **Payment Integration**: MoonPay SDK with KYC handled during payment flow
 - **Yield Investment**: Automated investment in Tinyman USDCa pools (2.5% APY)
 - **Dashboard**: Real-time balance, yield tracking, and gamified progress
 - **Education**: Interactive content on stablecoins and DeFi safety
@@ -79,8 +80,8 @@ cultivest-backend/
 - Node.js 18+ 
 - npm or yarn
 - Supabase account
-- MoonPay/Flutterwave API keys
-- Algorand testnet access
+- MoonPay API keys (publishable + secret)
+- Algorand testnet access (via AlgoNode - no API key required)
 
 ### Environment Variables
 Create a `.env` file with:
@@ -126,12 +127,15 @@ npm start
 
 ### User Management
 - `GET /user/profile` - Get user profile
-- `POST /user/kyc` - KYC verification process
+- Note: KYC is handled by MoonPay during payment flow
 
 ### Wallet & Transactions
-- `GET /wallet/balance` - Get USDCa balance
-- `POST /deposit/initiate` - Start fiat deposit
-- `POST /deposit/webhook` - Handle payment webhooks
+- `POST /wallet/create` - Create custodial Algorand wallet
+- `GET /wallet/balance` - Get live ALGO/USDCa balance with opt-in status
+- `GET /wallet/balance/live/{address}` - Direct on-chain balance check
+- `POST /deposit/initiate` - Start MoonPay deposit flow
+- `GET /deposit/status/{id}` - Track deposit progress
+- `POST /deposit/webhook` - Handle MoonPay webhooks
 - `POST /withdrawal/initiate` - Start withdrawal process
 - `POST /withdrawal/webhook` - Handle withdrawal webhooks
 
@@ -148,8 +152,11 @@ npm start
 - `POST /education/quiz/submit` - Submit quiz answers
 - `POST /ai/roundup-suggestion` - Get AI spending insights
 
-### Utilities
+### Development & Debug
 - `GET /hello` - Health check endpoint
+- `POST /debug/opt-in-usdca` - USDCa asset opt-in automation
+- `GET /debug/algorand-status` - Network status and configuration
+- `GET /debug/fund-testnet/status/{userId}` - Testnet funding status
 - `POST /transaction/receipt/send` - Send transaction receipts
 
 ## 💡 Key Features Implementation
@@ -216,18 +223,27 @@ Claude 4 integration for:
 
 ## 🚧 Development Roadmap
 
-### Phase 1 (MVP - Completed)
+### Phase 1A (Testnet Foundation - ✅ COMPLETED)
 - ✅ Core API endpoints
-- ✅ Basic authentication & KYC
+- ✅ Basic authentication  
 - ✅ Algorand wallet integration
-- ✅ Tinyman yield investment
-- ✅ Dashboard data endpoints
+- ✅ **Testnet funding workaround with faucets**
+- ✅ **USDCa asset opt-in automation**
+- ✅ **Balance detection with opt-in status**
+- ✅ **MoonPay SDK integration (sandbox)**
+- ✅ **TestnetFundingModal with Circle faucet**
 
-### Phase 2 (In Progress)
-- 🔄 Advanced security implementation
-- 🔄 Multi-chain support (Solana)
-- 🔄 Enhanced AI features
-- 🔄 Production deployment
+### Phase 1B (Investment Core - In Progress)
+- 🔄 Tinyman USDCa pool integration  
+- 🔄 Investment backend APIs
+- 🔄 Investment UI components
+- 🔄 GENIUS Act risk disclaimer
+
+### Phase 2 (Production Ready)
+- 📋 Advanced security implementation
+- 📋 Multi-chain support (Solana)
+- 📋 Enhanced AI features
+- 📋 Production deployment
 
 ### Phase 3 (Planned)
 - 📋 Round-up investment automation
