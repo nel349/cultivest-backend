@@ -46,7 +46,7 @@ POST {{baseUrl}}/wallet/create
 Content-Type: application/json
 
 {
-  "userId": "34f9176d-172d-431d-adb2-000d6459d4d2"
+  "userId": "d31ecd4a-4f4c-44aa-9143-88266bdbeb82"
 }
 
 ### Algorand status

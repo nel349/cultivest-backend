@@ -8,12 +8,12 @@ const router = express.Router();
 
 interface DepositRequest {
   amountUSD: number;
-  targetCurrency: 'usdca';
+  targetCurrency: 'btc' | 'usdca' | 'algo';
 }
 
 router.post('/', async (req, res) => {
   try {
-    const { amountUSD, targetCurrency = 'usdca' }: DepositRequest = req.body;
+    const { amountUSD, targetCurrency = 'btc' }: DepositRequest = req.body;
     const authHeader = req.headers.authorization;
 
     // Validate request
@@ -23,9 +23,9 @@ router.post('/', async (req, res) => {
       });
     }
 
-    if (targetCurrency !== 'usdca') {
+    if (!['btc', 'usdca', 'algo'].includes(targetCurrency)) {
       return res.status(400).json({
-        error: 'Only USDCa is supported as target currency.'
+        error: 'Supported currencies: btc (Bitcoin), usdca (Algorand USDC), algo (Algorand)'
       });
     }
 
@@ -54,10 +54,10 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    // Get user's wallet address
+    // Get user's wallet addresses (backward compatible)
     const { data: wallet, error: walletError } = await supabase
       .from('wallets')
-      .select('wallet_id, algorand_address')
+      .select('wallet_id, bitcoin_address, algorand_address')
       .eq('user_id', user.user_id)
       .single();
 
@@ -67,24 +67,55 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Calculate fees and estimated USDCa
-    const feeCalculation = moonPayService.calculateEstimatedUSDCa(amountUSD);
+    // Validate wallet address exists for target currency
+    const walletAddress = targetCurrency === 'btc' 
+      ? wallet.bitcoin_address 
+      : wallet.algorand_address;
+
+    if (!walletAddress) {
+      if (targetCurrency === 'btc') {
+        return res.status(400).json({ 
+          error: 'Bitcoin wallet not found. Please run database migration or create a new wallet to enable Bitcoin support.' 
+        });
+      } else {
+        return res.status(400).json({ 
+          error: `${targetCurrency.toUpperCase()} wallet address not found. Please create a wallet first.` 
+        });
+      }
+    }
+
+    // Calculate fees and estimated amount based on target currency
+    const feeCalculation = targetCurrency === 'btc' 
+      ? moonPayService.calculateEstimatedBitcoin(amountUSD)
+      : moonPayService.calculateEstimatedUSDCa(amountUSD);
 
     // Create deposit record
     const depositId = uuidv4();
     const externalTransactionId = `cultivest_${depositId}`;
 
+    // Create deposit record (backward compatible with existing schema)
+    const depositData: any = {
+      deposit_id: depositId,
+      user_id: user.user_id,
+      wallet_id: wallet.wallet_id,
+      amount_usd: amountUSD,
+      fees_paid: feeCalculation.totalFees,
+      status: 'pending_payment',
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+    };
+
+    // Add new fields only if they exist in the schema (after migration)
+    try {
+      // These fields will be added by the migration
+      depositData.target_currency = targetCurrency;
+      depositData.target_address = walletAddress;
+    } catch (error) {
+      console.log('💡 Using backward compatible deposit fields');
+    }
+
     const { data: deposit, error: depositError } = await supabase
       .from('deposits')
-      .insert({
-        deposit_id: depositId,
-        user_id: user.user_id,
-        wallet_id: wallet.wallet_id,
-        amount_usd: amountUSD,
-        fees_paid: feeCalculation.totalFees,
-        status: 'pending_payment',
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
-      })
+      .insert(depositData)
       .select()
       .single();
 
@@ -95,8 +126,8 @@ router.post('/', async (req, res) => {
 
     // Generate MoonPay widget URL
     const moonpayUrl = moonPayService.generateWidgetUrl({
-      walletAddress: wallet.algorand_address,
-      currencyCode: 'algo',
+      walletAddress,
+      currencyCode: targetCurrency === 'usdca' ? 'algo' : targetCurrency, // Use 'algo' for USDCa, direct currency for others
       baseCurrencyAmount: amountUSD,
       redirectURL: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/funding/success`,
       externalTransactionId
@@ -108,19 +139,31 @@ router.post('/', async (req, res) => {
       .update({ moonpay_url: moonpayUrl })
       .eq('deposit_id', depositId);
 
-    return res.json({
+    // Format response based on target currency
+    const response: any = {
       success: true,
       moonpayUrl,
       transactionId: depositId,
-      estimatedUSDCa: feeCalculation.estimatedUSDCa,
-      conversionRate: `1 USD ≈ ${(feeCalculation.estimatedUSDCa / amountUSD).toFixed(3)} USDCa (after fees)`,
+      targetCurrency: targetCurrency.toUpperCase(),
+      targetAddress: walletAddress,
       fees: {
         moonpayFee: feeCalculation.moonpayFee,
-        conversionFee: feeCalculation.conversionFee,
         total: feeCalculation.totalFees
-      },
-      message: 'Deposit initiated. Complete payment with MoonPay to receive USDCa.'
-    });
+      }
+    };
+
+    if (targetCurrency === 'btc') {
+      response.estimatedBTC = (feeCalculation as any).estimatedBTC;
+      response.networkFee = (feeCalculation as any).networkFee;
+      response.message = 'Bitcoin deposit initiated. Complete payment with MoonPay to receive Bitcoin.';
+    } else {
+      response.estimatedUSDCa = (feeCalculation as any).estimatedUSDCa;
+      response.conversionFee = (feeCalculation as any).conversionFee;
+      response.conversionRate = `1 USD ≈ ${((feeCalculation as any).estimatedUSDCa / amountUSD).toFixed(3)} USDCa (after fees)`;
+      response.message = 'Deposit initiated. Complete payment with MoonPay to receive USDCa.';
+    }
+
+    return res.json(response);
 
   } catch (error) {
     console.error('Deposit initiation error:', error);

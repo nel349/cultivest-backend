@@ -15,7 +15,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const checkTablesExist = async () => {
-  const tables = ['users', 'badges', 'wallets', 'otp_sessions', 'deposits'];
+  const tables = ['users', 'badges', 'wallets', 'otp_sessions', 'deposits', 'portfolio_nfts', 'position_nfts'];
   const tableStatus: { [key: string]: boolean } = {};
   
   for (const tableName of tables) {
@@ -34,25 +34,37 @@ const insertSampleData = async () => {
   console.log('\n📝 Inserting sample data...');
 
   try {
-    // Insert badges
+    // Insert Bitcoin-focused badges
     const badges = [
       {
-        name: 'First Investor',
-        description: 'Made your first investment in stablecoin yields',
-        criteria: { type: 'first_investment', min_amount: 1 },
-        category: 'first_steps'
+        name: 'First Bitcoin Investor',
+        description: 'Made your first Bitcoin investment',
+        criteria: { type: 'first_bitcoin_investment', min_amount: 1 },
+        category: 'bitcoin_investment'
       },
       {
-        name: 'First $10',
-        description: 'Invested your first $10',
-        criteria: { type: 'investment_amount', min_amount: 10 },
-        category: 'first_steps'
+        name: 'Bitcoin Pioneer',
+        description: 'Purchased your first Bitcoin through Cultivest',
+        criteria: { type: 'first_bitcoin_purchase', min_amount: 10 },
+        category: 'bitcoin_investment'
       },
       {
-        name: 'Safe Saver',
-        description: 'Completed the stablecoin safety quiz',
-        criteria: { type: 'quiz_completion', quiz_type: 'stablecoin_safety' },
-        category: 'education'
+        name: 'Portfolio NFT Creator',
+        description: 'Created your first portfolio NFT on Algorand',
+        criteria: { type: 'portfolio_nft_creation' },
+        category: 'nft_portfolio'
+      },
+      {
+        name: 'Multi-Chain Master',
+        description: 'Invested in both Bitcoin and Algorand',
+        criteria: { type: 'multi_chain_investment' },
+        category: 'multi_chain'
+      },
+      {
+        name: 'HODLer',
+        description: 'Held Bitcoin for 30+ days',
+        criteria: { type: 'holding_period', cryptocurrency: 'btc', min_days: 30 },
+        category: 'bitcoin_investment'
       }
     ];
 
@@ -210,18 +222,22 @@ CREATE INDEX IF NOT EXISTS idx_deposits_moonpay_tx_id ON deposits(moonpay_transa
   const dataSuccess = await insertSampleData();
   
   if (dataSuccess) {
-    console.log('\n🎉 Database setup completed successfully!\n');
+    console.log('\n🎉 Bitcoin-first database setup completed successfully!\n');
     console.log('📊 Your Cultivest database is ready with:');
-    console.log('  ✅ users - User profiles and authentication');
-    console.log('  ✅ wallets - Custodial Algorand wallet management');
+    console.log('  ✅ users - User profiles with Bitcoin + Algorand support');
+    console.log('  ✅ wallets - Bitcoin-first multi-chain custodial wallet management');
     console.log('  ✅ otp_sessions - Phone number verification system');
-    console.log('  ✅ badges - Gamification achievement system');
-    console.log('  ✅ Sample badge data for testing\n');
+    console.log('  ✅ badges - Bitcoin-focused gamification achievement system');
+    console.log('  ✅ portfolio_nfts - NFT-based portfolio tracking on Algorand');
+    console.log('  ✅ position_nfts - Individual investment position NFTs');
+    console.log('  ✅ deposits - Multi-chain deposit tracking (Bitcoin + Algorand)');
+    console.log('  ✅ Sample Bitcoin-focused badge data for testing\n');
     
     console.log('🔄 Next Steps:');
-    console.log('  1. Start implementing real auth endpoints');
-    console.log('  2. Test the signup → OTP → wallet creation flow');
-    console.log('  3. Integrate with MoonPay for KYC');
+    console.log('  1. Test Bitcoin + Algorand wallet creation');
+    console.log('  2. Test MoonPay Bitcoin purchase integration');
+    console.log('  3. Implement Portfolio NFT creation on Algorand');
+    console.log('  4. Test the Bitcoin-first investment flow');
   } else {
     console.log('\n⚠️ Tables exist but sample data insertion failed');
     console.log('You can proceed with implementation anyway');

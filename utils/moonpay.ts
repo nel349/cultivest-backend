@@ -102,7 +102,37 @@ export class MoonPayService {
   }
 
   /**
-   * Calculate estimated USDCa amount after fees
+   * Calculate estimated Bitcoin amount after fees
+   */
+  calculateEstimatedBitcoin(amountUSD: number): {
+    estimatedBTC: number;
+    moonpayFee: number;
+    networkFee: number;
+    totalFees: number;
+  } {
+    // MoonPay fee: ~3.5% for card payments
+    const moonpayFee = amountUSD * 0.035;
+    
+    // Bitcoin network fee: ~$2-5 (flat fee)
+    const networkFee = Math.min(5, amountUSD * 0.01); // Dynamic based on amount
+    
+    const totalFees = moonpayFee + networkFee;
+    const netAmount = amountUSD - totalFees;
+    
+    // Estimate BTC amount (will be updated with real price)
+    const estimatedBTCPrice = 45000; // Placeholder - should fetch real price
+    const estimatedBTC = netAmount / estimatedBTCPrice;
+
+    return {
+      estimatedBTC: Math.max(0, estimatedBTC),
+      moonpayFee,
+      networkFee,
+      totalFees
+    };
+  }
+
+  /**
+   * Calculate estimated USDCa amount after fees (legacy support)
    */
   calculateEstimatedUSDCa(amountUSD: number): {
     estimatedUSDCa: number;
@@ -128,7 +158,21 @@ export class MoonPayService {
   }
 
   /**
-   * Get current ALGO price from MoonPay API
+   * Get current Bitcoin price from MoonPay API
+   */
+  async getBitcoinPrice(): Promise<number> {
+    try {
+      const response = await fetch(`${this.config.apiUrl}/v3/currencies/btc/price?apiKey=${this.config.apiKey}`);
+      const data = await response.json() as { price: number };
+      return data.price || 45000; // Fallback price
+    } catch (error) {
+      console.error('Failed to fetch Bitcoin price:', error);
+      return 45000; // Fallback price
+    }
+  }
+
+  /**
+   * Get current ALGO price from MoonPay API (legacy support)
    */
   async getAlgoPrice(): Promise<number> {
     try {
