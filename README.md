@@ -1,47 +1,52 @@
 # Cultivest Backend
 
-**Micro-Investment Platform for Stablecoin Yields**
+**Multi-Chain Micro-Investment Platform**
 
-A Node.js/TypeScript backend API for Cultivest, a mobile-first micro-investment platform that enables users to invest small amounts ($1–$10) in stablecoin yields (2–5% APY) on Algorand's USDCa. Built for the World's Largest Hackathon by Bolt.new.
+A Node.js/TypeScript backend API for Cultivest, a mobile-first micro-investment platform that enables users to invest small amounts ($1–$10) in Bitcoin and Algorand. Features custodial wallet management, Portfolio NFTs on Algorand for tracking investments, and future Chain Key self-custody opt-in. Built for the World's Largest Hackathon by Bolt.new.
 
 ## 🌟 Overview
 
-Cultivest democratizes access to stablecoin yields for Gen Z, millennials, and unbanked users in emerging markets. The platform offers:
+Cultivest democratizes access to cryptocurrency investments for Gen Z, millennials, and unbanked users in emerging markets. The platform offers:
 
-- **Micro-investments**: Start with as little as $1
-- **Stable returns**: 2-5% APY via audited stablecoin protocols  
-- **GENIUS Act compliance**: Transparent, reserve-backed stablecoins
-- **Gamified UX**: Visual "money tree" growth with yields
+- **Micro-investments**: Start with as little as $1 in Bitcoin and Algorand
+- **Portfolio NFTs**: Algorand-based NFTs track your entire investment portfolio
+- **Custodial Security**: Professional custody with optional self-custody transition
+- **Multi-chain Support**: Bitcoin (custodial) + Algorand (direct) with more chains coming
+- **Gamified UX**: Visual portfolio growth with NFT-based achievements
 - **Global accessibility**: Support for Nigeria, Argentina, and other emerging markets
 
 ## 🚀 Features
 
 ### Core Functionality
 - **User Authentication**: Phone-based signup with OTP verification
-- **Wallet Management**: Custodial Algorand wallets for USDCa
-- **Testnet Development**: Complete faucet-based funding workaround
-- **Asset Management**: USDCa opt-in automation and balance detection
+- **Multi-Chain Wallet Management**: Custodial Bitcoin + Algorand wallets with AES-256 encryption
+- **Portfolio NFT System**: Algorand NFTs track entire investment portfolios and individual positions
+- **Bitcoin Investment**: Direct MoonPay Bitcoin purchases with custodial storage
 - **Payment Integration**: MoonPay SDK with KYC handled during payment flow
-- **Yield Investment**: Automated investment in Tinyman USDCa pools (2.5% APY)
-- **Dashboard**: Real-time balance, yield tracking, and gamified progress
-- **Education**: Interactive content on stablecoins and DeFi safety
-- **AI Integration**: Claude 4-powered spending analysis and round-up suggestions
+- **Investment Tracking**: Real-time Bitcoin and Algorand balance monitoring and synchronization
+- **Dashboard**: Multi-chain portfolio tracking, performance metrics, and gamified progress
+- **Education**: Interactive content on cryptocurrency investing and custody options
+- **AI Integration**: Claude 4-powered portfolio analysis and investment insights
+- **Chain Key Integration**: Future self-custody opt-in with secure key management
 
 ### Technical Features
-- **Multi-chain Support**: Algorand (primary), Solana (fallback)
-- **Payment Gateways**: MoonPay (global), Flutterwave (Nigeria)
-- **Compliance**: AML monitoring, transaction reporting
-- **Security**: Multi-signature wallets, AES-256 encryption
-- **Notifications**: Daily yield updates, transaction receipts
+- **Multi-chain Support**: Bitcoin (custodial), Algorand (primary), with Ethereum/Solana (future)
+- **Payment Gateways**: MoonPay (Bitcoin purchases), Flutterwave (Nigeria)
+- **NFT Infrastructure**: Algorand-based Portfolio NFTs with metadata and visual generation
+- **Custody Management**: Secure private key storage with future self-custody migration
+- **Compliance**: AML monitoring, transaction reporting, crypto custody regulations
+- **Security**: AES-256 encryption, secure key derivation, multi-chain signing
+- **Notifications**: Portfolio updates, transaction receipts, performance alerts
 
 ## 🛠 Tech Stack
 
 - **Backend**: Node.js + Express + TypeScript
 - **Database**: Supabase (PostgreSQL)
-- **Blockchain**: Algorand SDK, Solana Web3.js
+- **Blockchain**: Bitcoin Core (via libraries), Algorand SDK, future Ethereum/Solana Web3.js
 - **Authentication**: Supabase Auth with OTP
-- **Payments**: MoonPay SDK, Flutterwave API
-- **AI**: Claude 4 API for spending analysis
+- **Payments**: MoonPay SDK (Bitcoin), Flutterwave API
+- **NFTs**: Algorand ARC-69 standard with IPFS metadata storage
+- **AI**: Claude 4 API for portfolio analysis and investment insights
 - **Deployment**: Vercel (serverless functions)
 
 ## 📁 Project Structure
@@ -126,28 +131,31 @@ npm start
 - `POST /auth/verify-otp` - OTP verification
 
 ### User Management
-- `GET /user/profile` - Get user profile
+- `GET /user/profile` - Get user profile with custody status
+- `POST /user/opt-in-self-custody` - Opt into Chain Key self-custody (Phase 2)
 - Note: KYC is handled by MoonPay during payment flow
 
 ### Wallet & Transactions
-- `POST /wallet/create` - Create custodial Algorand wallet
-- `GET /wallet/balance` - Get live ALGO/USDCa balance with opt-in status
-- `GET /wallet/balance/live/{address}` - Direct on-chain balance check
-- `POST /deposit/initiate` - Start MoonPay deposit flow
-- `GET /deposit/status/{id}` - Track deposit progress
-- `POST /deposit/webhook` - Handle MoonPay webhooks
-- `POST /withdrawal/initiate` - Start withdrawal process
+- `POST /wallet/create` - Create multi-chain custodial wallets (Bitcoin + Algorand)
+- `GET /wallet/balance` - Get live Bitcoin and Algorand balances with sync status
+- `GET /wallet/balance/live/{address}` - Direct on-chain balance check for any supported chain
+- `GET /wallet/bitcoin-address/{userID}` - Get user's Bitcoin wallet address
+- `GET /wallet/algorand-address/{userID}` - Get user's Algorand wallet address
+- `POST /deposit/initiate` - Start MoonPay Bitcoin purchase flow
+- `GET /deposit/status/{id}` - Track Bitcoin deposit progress
+- `POST /deposit/webhook` - Handle MoonPay Bitcoin purchase webhooks
+- `POST /withdrawal/initiate` - Start multi-chain withdrawal process
 - `POST /withdrawal/webhook` - Handle withdrawal webhooks
 
 ### Investments
-- `POST /investment/initiate` - Invest USDCa in Tinyman pools (requires risk acceptance)
-- `GET /investment/positions` - Get user's active investment positions with yield calculations
-- `GET /investment/status/:positionId` - Get detailed status and yield for specific position
-- `GET /investment/pools` - Get available investment pools (Tinyman USDCa pools)
-- `GET /investment/pools/:poolId` - Get detailed information for specific pool
-- `POST /investment/withdraw` - Withdraw from investment position (partial or full)
-- `POST /investment/yield/calculate` - Calculate and distribute daily yield (automated)
-- `GET /investment/yield/history/:userID` - Get yield earning history and analytics
+- `POST /investment/initiate` - Invest in Bitcoin or Algorand (with portfolio NFT creation)
+- `GET /investment/positions` - Get user's active investment positions across all chains
+- `GET /investment/status/:positionId` - Get detailed status and performance for specific position
+- `GET /investment/portfolio-nft/:userID` - Get user's Portfolio NFT information and metadata
+- `GET /investment/position-nfts/:portfolioID` - Get all Position NFTs for a portfolio
+- `POST /investment/transfer` - Transfer Position NFT or entire Portfolio NFT bundle
+- `POST /investment/update-metadata` - Update Portfolio/Position NFT metadata with latest values
+- `GET /investment/performance/:userID` - Get portfolio performance analytics and history
 
 ### Dashboard & Data
 - `GET /dashboard/data` - Get dashboard metrics
