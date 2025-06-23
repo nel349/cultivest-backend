@@ -31,6 +31,7 @@ export interface WalletInfo {
   walletId: string;
   userId: string;
   algorandAddress: string;
+  encryptedPrivateKey: string;
   balance: {
     algo: number;
     usdca: number;
@@ -39,6 +40,7 @@ export interface WalletInfo {
     algo: number;
     usdca: number;
     lastUpdated: string;
+    isOptedIntoUSDCa?: boolean;
   };
   createdAt: string;
 }
@@ -180,6 +182,7 @@ export const getUserWallet = async (
       walletId: wallet.wallet_id,
       userId: wallet.user_id,
       algorandAddress: wallet.algorand_address,
+      encryptedPrivateKey: wallet.encrypted_private_key,
       balance: {
         algo: wallet.balance_algo || 0,
         usdca: wallet.balance_usdca || 0
@@ -240,10 +243,31 @@ export const getUserWallet = async (
  */
 export const decryptPrivateKey = (encryptedPrivateKey: string): string => {
   try {
+    console.log('🔐 Attempting to decrypt private key...');
+    console.log('🔑 Encryption key available:', !!encryptionKey);
+    console.log('📝 Encrypted key length:', encryptedPrivateKey?.length || 0);
+    
+    if (!encryptedPrivateKey) {
+      throw new Error('No encrypted private key provided');
+    }
+    
+    if (!encryptionKey) {
+      throw new Error('No encryption key available');
+    }
+    
     const bytes = CryptoJS.AES.decrypt(encryptedPrivateKey, encryptionKey);
-    return bytes.toString(CryptoJS.enc.Utf8);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    
+    if (!decrypted) {
+      throw new Error('Decryption resulted in empty string - wrong encryption key or corrupted data');
+    }
+    
+    console.log('✅ Private key decrypted successfully');
+    return decrypted;
   } catch (error) {
-    throw new Error('Failed to decrypt private key');
+    console.error('🔒 Decryption error details:', error);
+    console.error('🔒 Encrypted key preview:', encryptedPrivateKey?.substring(0, 50) + '...');
+    throw new Error(`Failed to decrypt private key: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 

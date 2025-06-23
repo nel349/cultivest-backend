@@ -1,0 +1,108 @@
+### Cultivest Investment API Tests
+### Make sure to set variables for userID and other values as needed
+
+@baseUrl = http://localhost:3000/api/v1
+@userID = 34f9176d-172d-431d-adb2-000d6459d4d2
+@positionId = test-position-456
+
+### 1. Get available investment pools
+GET {{baseUrl}}/investment/pools
+Content-Type: application/json
+
+### 2. Get specific pool details (Tinyman USDCa pool)
+GET {{baseUrl}}/investment/pools/tinyman_usdca_v2
+Content-Type: application/json
+
+### 3. Initiate investment (without risk acceptance - should fail)
+POST {{baseUrl}}/investment/initiate
+Content-Type: application/json
+
+{
+  "userID": "{{userID}}",
+  "amount": 5.0
+}
+
+### 4. Initiate investment (with risk acceptance - should succeed)
+POST {{baseUrl}}/investment/initiate
+Content-Type: application/json
+
+{
+  "userID": "{{userID}}",
+  "amount": 5.0,
+  "riskAccepted": true
+}
+
+### 5. Get user's investment positions
+GET {{baseUrl}}/investment/positions?userID={{userID}}
+Content-Type: application/json
+
+### 6. Get specific investment position status
+GET {{baseUrl}}/investment/status/{{positionId}}?userID={{userID}}
+Content-Type: application/json
+
+### 7. Get user's yield history (last 30 days)
+GET {{baseUrl}}/investment/yield/history/{{userID}}?days=30
+Content-Type: application/json
+
+### 8. Calculate and distribute daily yield (admin endpoint)
+POST {{baseUrl}}/investment/yield/calculate
+Content-Type: application/json
+
+### 9. Partial withdrawal from investment
+POST {{baseUrl}}/investment/withdraw
+Content-Type: application/json
+
+{
+  "userID": "{{userID}}",
+  "positionId": "{{positionId}}",
+  "withdrawType": "partial",
+  "amount": 2.0
+}
+
+### 10. Full withdrawal from investment
+POST {{baseUrl}}/investment/withdraw
+Content-Type: application/json
+
+{
+  "userID": "{{userID}}",
+  "positionId": "{{positionId}}",
+  "withdrawType": "full"
+}
+
+### 11. Test invalid investment amount (too small)
+POST {{baseUrl}}/investment/initiate
+Content-Type: application/json
+
+{
+  "userID": "{{userID}}",
+  "amount": 0.5,
+  "riskAccepted": true
+}
+
+### 12. Test investment with insufficient balance
+POST {{baseUrl}}/investment/initiate
+Content-Type: application/json
+
+{
+  "userID": "{{userID}}",
+  "amount": 10000.0,
+  "riskAccepted": true
+}
+
+### 13. Test withdrawal from non-existent position
+POST {{baseUrl}}/investment/withdraw
+Content-Type: application/json
+
+{
+  "userID": "{{userID}}",
+  "positionId": "non-existent-position",
+  "withdrawType": "full"
+}
+
+### 14. Get yield history for different time periods
+GET {{baseUrl}}/investment/yield/history/{{userID}}?days=7
+Content-Type: application/json
+
+###
+GET {{baseUrl}}/investment/yield/history/{{userID}}?days=90
+Content-Type: application/json

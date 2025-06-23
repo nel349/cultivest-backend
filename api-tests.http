@@ -72,6 +72,12 @@ Content-Type: application/json
   "userId": "34f9176d-172d-431d-adb2-000d6459d4d2"
 }
 
+### Get Wallet Mnemonic (12-word phrase) - ⚠️ SENSITIVE DATA
+GET {{baseUrl}}/wallet/mnemonic?userId=34f9176d-172d-431d-adb2-000d6459d4d2
+
+### Get Wallet Mnemonic for another user (if exists)
+GET {{baseUrl}}/wallet/mnemonic?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e
+
 ### 2. Verify OTP for signup/login - DATABASE INTEGRATION TEST
 POST {{baseUrl}}/auth/verify-otp
 Content-Type: application/json

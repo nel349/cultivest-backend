@@ -140,8 +140,14 @@ npm start
 - `POST /withdrawal/webhook` - Handle withdrawal webhooks
 
 ### Investments
-- `POST /investment/initiate` - Invest in yield pools
-- `GET /investment/positions` - Get active positions
+- `POST /investment/initiate` - Invest USDCa in Tinyman pools (requires risk acceptance)
+- `GET /investment/positions` - Get user's active investment positions with yield calculations
+- `GET /investment/status/:positionId` - Get detailed status and yield for specific position
+- `GET /investment/pools` - Get available investment pools (Tinyman USDCa pools)
+- `GET /investment/pools/:poolId` - Get detailed information for specific pool
+- `POST /investment/withdraw` - Withdraw from investment position (partial or full)
+- `POST /investment/yield/calculate` - Calculate and distribute daily yield (automated)
+- `GET /investment/yield/history/:userID` - Get yield earning history and analytics
 
 ### Dashboard & Data
 - `GET /dashboard/data` - Get dashboard metrics
