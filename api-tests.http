@@ -59,11 +59,17 @@ GET {{baseUrl}}/wallet/balance?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e
 ### Wallet Balance (With Live On-Chain Data)
 GET {{baseUrl}}/wallet/balance?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e&live=true
 
-### Live Balance by Address
+### Live Algorand Balance by Address
 GET {{baseUrl}}/wallet/balance/live/6ABVCEUUO5IX6DUFJRZANIKKY7QPOWQRETQHRW5IK4AN2TKUXKBF5LFB6M
 
-### Test with your wallet address
+### Test with your Algorand wallet address
 GET {{baseUrl}}/wallet/balance/live/NWPHQ7ZQJJQKBVD5RY4HYSBXHI5SLXDTBH3MUYZ3LK4MRY6JBKVEVTQOHA
+
+### Live Bitcoin Balance by Address (NEW)
+GET {{baseUrl}}/wallet/balance/bitcoin/tb1q37kwfqz8rsypragqnw9pp3jkdwadqhp97z4wcq
+
+### Test Bitcoin Balance with Real Address (Example)
+GET {{baseUrl}}/wallet/balance/bitcoin/tb1q37kwfqz8rsypragqnw9pp3jkdwadqhp97z4wcq
 
 ### Sync Database Balance with On-Chain
 POST {{baseUrl}}/wallet/balance/sync
@@ -347,12 +353,25 @@ POST {{baseUrl}}/wallet/create
 Content-Type: application/json
 
 {
-  "userId": "YOUR_USER_ID_HERE"
+  "userId": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd"
 }
 
 ### 27. Get Multi-Chain Wallet Balance (Database + Live)
 # @name getMultiChainBalance
-GET {{baseUrl}}/wallet/balance?userId=YOUR_USER_ID_HERE&live=true
+GET {{baseUrl}}/wallet/balance?userId=6ed81d5d-d15b-41f1-825c-8eff55a1a9fd&live=true
+
+### 28. Get Live Bitcoin Balance for User's Address
+# @name getLiveBitcoinBalance
+GET {{baseUrl}}/wallet/balance/bitcoin/tb1q37kwfqz8rsypragqnw9pp3jkdwadqhp97z4wcq
+
+### 29. Multi-Chain Balance Sync
+# @name syncMultiChainBalance
+POST {{baseUrl}}/wallet/balance/sync
+Content-Type: application/json
+
+{
+  "userId": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd"
+}
 
 # --- Authentication Flow for Testing ---
 
@@ -379,7 +398,8 @@ Content-Type: application/json
 
 # --- Debug & Status Endpoints ---
 
-### 30. Test Bitcoin Wallet Generation (Debug)
+### 30. Test Bitcoin Integration Status (Debug)
+# @name testBitcoinStatus
 GET {{baseUrl}}/debug/bitcoin-status
 
 ### 31. Test MoonPay Bitcoin Integration (Requires Authentication)

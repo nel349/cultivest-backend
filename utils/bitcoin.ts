@@ -115,28 +115,115 @@ export const decryptBitcoinPrivateKey = (encryptedPrivateKey: string): string =>
 };
 
 /**
- * Get Bitcoin network status
+ * Get Bitcoin network status and test balance API
  */
-export const getBitcoinNetworkStatus = () => {
+export const getBitcoinNetworkStatus = async () => {
+  // Test with a known address that should have some balance
+  const testAddress = network === bitcoin.networks.testnet 
+    ? 'tb1q37kwfqz8rsypragqnw9pp3jkdwadqhp97z4wcq' // Known testnet address with activity
+    : 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhkv4k'; // Known mainnet address
+  
+  let balanceApiStatus = 'unknown';
+  let testBalance = 0;
+  
+  try {
+    testBalance = await getBitcoinBalance(testAddress);
+    balanceApiStatus = 'working';
+  } catch (error) {
+    balanceApiStatus = 'error';
+    console.error('Bitcoin balance API test failed:', error);
+  }
+  
   return {
     network: network === bitcoin.networks.testnet ? 'testnet' : 'mainnet',
     addressType: 'P2WPKH (Native SegWit)',
-    encryptionEnabled: true
+    encryptionEnabled: true,
+    balanceAPI: {
+      status: balanceApiStatus,
+      provider: 'BlockCypher',
+      testAddress,
+      testBalance
+    }
   };
 };
 
 /**
- * Get Bitcoin balance for an address (placeholder for future blockchain API integration)
+ * Get Bitcoin balance for an address using BlockCypher API
  */
 export const getBitcoinBalance = async (address: string): Promise<number> => {
   try {
-    // TODO: Integrate with Bitcoin blockchain API (BlockCypher, Electrum, etc.)
-    // For now, return 0 as placeholder
     console.log(`🔍 Fetching Bitcoin balance for: ${address}`);
-    console.log('💡 Bitcoin balance fetching will be implemented with blockchain API integration');
-    return 0;
+    
+    // Validate address format and determine network compatibility
+    const isTestnetAddress = /^(tb1[a-z0-9]{39,}|[2mn][a-km-zA-HJ-NP-Z1-9]{25,34})$/.test(address);
+    const isMainnetAddress = /^(bc1[a-z0-9]{39,}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/.test(address);
+    const currentNetwork = network === bitcoin.networks.testnet ? 'testnet' : 'mainnet';
+    
+    console.log(`🔍 Address analysis: ${address}`);
+    console.log(`🔍 Current network: ${currentNetwork}`);
+    console.log(`🔍 Address appears to be: ${isTestnetAddress ? 'testnet' : isMainnetAddress ? 'mainnet' : 'unknown'}`);
+    
+    // Auto-detect network based on address if there's a mismatch
+    let networkPath;
+    if (isTestnetAddress) {
+      networkPath = 'test3';
+      if (currentNetwork === 'mainnet') {
+        console.log(`⚠️ Testnet address detected but configured for mainnet - using testnet API`);
+      }
+    } else if (isMainnetAddress) {
+      networkPath = 'main';
+      if (currentNetwork === 'testnet') {
+        console.log(`⚠️ Mainnet address detected but configured for testnet - using mainnet API`);
+      }
+    } else {
+      throw new Error(`Invalid Bitcoin address format: ${address}`);
+    }
+    
+    const apiUrl = `https://api.blockcypher.com/v1/btc/${networkPath}/addrs/${address}/balance`;
+    console.log(`📡 Calling BlockCypher API: ${apiUrl}`);
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log(`📭 Address ${address} not found on blockchain (new address with 0 balance)`);
+        return 0;
+      }
+      throw new Error(`BlockCypher API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // BlockCypher returns balance in satoshis, convert to BTC
+    const balanceSatoshis = data.balance || 0;
+    const balanceBTC = balanceSatoshis / 100000000; // 1 BTC = 100,000,000 satoshis
+    
+    console.log(`💰 Bitcoin balance for ${address}: ${balanceBTC} BTC (${balanceSatoshis} satoshis)`);
+    console.log(`🔍 Balance details:`, {
+      address: data.address,
+      balance: balanceBTC,
+      balanceSatoshis: balanceSatoshis,
+      unconfirmedBalance: (data.unconfirmed_balance || 0) / 100000000,
+      totalReceived: (data.total_received || 0) / 100000000,
+      totalSent: (data.total_sent || 0) / 100000000,
+      numTx: data.n_tx || 0
+    });
+    
+    return balanceBTC;
+    
   } catch (error) {
-    console.error('Error fetching Bitcoin balance:', error);
+    console.error('❌ Error fetching Bitcoin balance:', error);
+    
+    // Return 0 on error but log it - don't break the application
+    if (error instanceof Error) {
+      console.error(`🔍 Bitcoin balance error details: ${error.message}`);
+    }
+    
     return 0;
   }
 };

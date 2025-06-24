@@ -1,5 +1,6 @@
 import express from 'express';
 import { getUserWallet, getOnChainBalance } from '../../../utils/wallet';
+import { getBitcoinBalance } from '../../../utils/bitcoin';
 
 const router = express.Router();
 
@@ -35,15 +36,20 @@ router.get('/', async (req, res) => {
     return res.json({
       success: true,
       userID: actualUserId,
-      walletAddress: wallet.algorandAddress,
+      addresses: {
+        bitcoin: wallet.bitcoinAddress || null,
+        algorand: wallet.algorandAddress || null
+      },
       balance: {
         databaseBalance: {
-          algo: wallet.balance.algo,
-          usdca: wallet.balance.usdca
+          btc: wallet.balance.btc || 0,
+          algo: wallet.balance.algo || 0,
+          usdca: wallet.balance.usdca || 0
         },
         onChainBalance: wallet.onChainBalance ? {
-          algo: wallet.onChainBalance.algo,
-          usdca: wallet.onChainBalance.usdca,
+          btc: wallet.onChainBalance.btc || 0,
+          algo: wallet.onChainBalance.algo || 0,
+          usdca: wallet.onChainBalance.usdca || 0,
           isOptedIntoUSDCa: wallet.onChainBalance.isOptedIntoUSDCa,
           lastUpdated: wallet.onChainBalance.lastUpdated
         } : null
@@ -59,7 +65,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/v1/wallet/balance/live/:address - Get live balance for any address
+// GET /api/v1/wallet/balance/live/:address - Get live balance for any address (Algorand only)
 router.get('/live/:address', async (req, res) => {
   try {
     const { address } = req.params;
@@ -84,11 +90,53 @@ router.get('/live/:address', async (req, res) => {
     return res.json({
       success: true,
       address: address,
+      blockchain: 'algorand',
       balance: onChainBalance
     });
 
   } catch (error) {
     console.error('Live balance endpoint error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/v1/wallet/balance/bitcoin/:address - Get live Bitcoin balance for any address
+router.get('/bitcoin/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+
+    // Bitcoin address validation for different formats
+    const isValidBitcoinAddress = address && (
+      /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address) ||          // Legacy P2PKH/P2SH (mainnet)
+      /^bc1[a-z0-9]{39,}$/.test(address) ||                          // Mainnet Bech32 (P2WPKH/P2WSH)
+      /^tb1[a-z0-9]{39,}$/.test(address) ||                          // Testnet Bech32 (P2WPKH/P2WSH)
+      /^[2mn][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address)             // Testnet Legacy
+    );
+
+    if (!isValidBitcoinAddress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Bitcoin address format. Supported: Legacy (1,3), Bech32 (bc1), Testnet (tb1,2,m,n)'
+      });
+    }
+
+    const btcBalance = await getBitcoinBalance(address);
+
+    return res.json({
+      success: true,
+      address: address,
+      blockchain: 'bitcoin',
+      balance: {
+        btc: btcBalance,
+        lastUpdated: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Bitcoin balance endpoint error:', error);
     return res.status(500).json({
       success: false,
       error: 'Internal server error'
@@ -120,9 +168,12 @@ router.post('/sync', async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Balance synced successfully',
+      message: 'Multi-chain balance synced successfully',
       wallet: {
-        algorandAddress: wallet.algorandAddress,
+        addresses: {
+          bitcoin: wallet.bitcoinAddress || null,
+          algorand: wallet.algorandAddress || null
+        },
         syncedBalance: wallet.balance,
         onChainBalance: wallet.onChainBalance
       }

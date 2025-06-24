@@ -8,7 +8,7 @@ const router = express.Router();
 
 interface DepositRequest {
   amountUSD: number;
-  targetCurrency: 'btc' | 'usdca' | 'algo';
+  targetCurrency: 'btc' | 'usdca' | 'algo' | 'crypto';
 }
 
 router.post('/', async (req, res) => {
@@ -43,9 +43,9 @@ router.post('/', async (req, res) => {
       });
     }
 
-    if (!['btc', 'usdca', 'algo'].includes(targetCurrency)) {
+    if (!['btc', 'usdca', 'algo', 'crypto'].includes(targetCurrency)) {
       return res.status(400).json({
-        error: 'Supported currencies: btc (Bitcoin), usdca (Algorand USDC), algo (Algorand)'
+        error: 'Supported currencies: btc (Bitcoin), usdca (Algorand USDC), algo (Algorand), crypto (general crypto)'
       });
     }
     
@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
     // Validate wallet address exists for target currency
     const walletAddress = targetCurrency === 'btc' 
       ? wallet.bitcoin_address 
-      : wallet.algorand_address;
+      : wallet.algorand_address; // For 'crypto', 'usdca', and 'algo', use Algorand address
 
     if (!walletAddress) {
       return res.status(400).json({ 
@@ -119,9 +119,12 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Map target currency to MoonPay currency code
+    const moonPayCurrency = targetCurrency === 'crypto' ? 'usdca' : targetCurrency; // Default 'crypto' to USDCa for now
+    
     // Generate MoonPay widget URL
     const moonPayUrl = moonPayService.generateWidgetUrl({
-      currencyCode: targetCurrency,
+      currencyCode: moonPayCurrency,
       baseCurrencyAmount: amountUSD,
       walletAddress: walletAddress,
       externalTransactionId: depositId,
