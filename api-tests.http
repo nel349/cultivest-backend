@@ -1,6 +1,7 @@
 ### Cultivest Backend API Tests
 
 @baseUrl=http://localhost:3000/api/v1
+@auth_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ZWQ4MWQ1ZC1kMTViLTQxZjEtODI1Yy04ZWZmNTVhMWE5ZmQiLCJwaG9uZU51bWJlciI6IisxOTE1NDA4MjAzMCIsImlhdCI6MTc1MDcyNTIyMCwiZXhwIjoxNzUwODExNjIwfQ._mHDru0F7WvZMcegWagPihBElK_sFeAMUSF8zjWFlGU
 
 
 ### 1. Hello World
@@ -83,8 +84,8 @@ POST {{baseUrl}}/auth/verify-otp
 Content-Type: application/json
 
 {
-  "userID": "34f9176d-172d-431d-adb2-000d6459d4d2",
-  "otpCode": "198857"
+  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
+  "otpCode": "177770"
 }
 
 ### 3. User Login (Request OTP)
@@ -123,13 +124,13 @@ GET {{baseUrl}}/wallet/balance
 
 # --- Fiat-to-USDCa Deposit ---
 
-### 7. Initiate Deposit
+### 7. Initiate Deposit (Requires Authentication)
 # @name initiateDeposit
 POST {{baseUrl}}/deposit/initiate
 Content-Type: application/json
+Authorization: Bearer {{auth_token}}
 
 {
-  "userID": "34f9176d-172d-431d-adb2-000d6459d4d2",
   "amountUSD": 10,
   "targetCurrency": "usdca"
 }
@@ -308,24 +309,24 @@ Content-Type: application/json
   "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd"
 }
 
-### 22. Bitcoin Deposit - Direct Bitcoin Purchase
+### 22. Bitcoin Deposit - Direct Bitcoin Purchase (Requires Authentication)
 # @name initiateBitcoinDeposit
 POST {{baseUrl}}/deposit/initiate
 Content-Type: application/json
+Authorization: Bearer {{auth_token}}
 
 {
-  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
   "amountUSD": 50,
   "targetCurrency": "btc"
 }
 
-### 23. Algorand Deposit - USDCa Purchase
+### 23. Algorand Deposit - USDCa Purchase (Requires Authentication)
 # @name initiateAlgorandDeposit
 POST {{baseUrl}}/deposit/initiate
 Content-Type: application/json
+Authorization: Bearer {{auth_token}}
 
 {
-  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
   "amountUSD": 30,
   "targetCurrency": "usdca"
 }
@@ -381,10 +382,10 @@ Content-Type: application/json
 ### 30. Test Bitcoin Wallet Generation (Debug)
 GET {{baseUrl}}/debug/bitcoin-status
 
-### 31. Test MoonPay Bitcoin Integration
+### 31. Test MoonPay Bitcoin Integration (Requires Authentication)
 POST {{baseUrl}}/moonpay/sign-url
 Content-Type: application/json
-Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Authorization: Bearer {{auth_token}}
 
 {
   "url": "https://buy-sandbox.moonpay.com?apiKey=pk_test_123&currencyCode=btc&baseCurrencyAmount=25&walletAddress=tb1qtest"

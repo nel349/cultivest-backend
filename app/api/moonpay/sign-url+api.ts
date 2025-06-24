@@ -21,10 +21,11 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Validate JWT authentication
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        error: 'Authorization token required' 
+        error: 'Authorization token required'
       });
     }
 
@@ -33,9 +34,9 @@ router.post('/', async (req, res) => {
     const decoded = verifyJWT(token);
     
     if (!decoded) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        error: 'Invalid token' 
+        error: 'Invalid or expired token'
       });
     }
     

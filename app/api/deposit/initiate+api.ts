@@ -1,27 +1,42 @@
 import express from 'express';
 import { supabase } from '../../../utils/supabase';
 import { moonPayService } from '../../../utils/moonpay';
+import { verifyJWT } from '../../../utils/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
 interface DepositRequest {
-  userID: string;
   amountUSD: number;
   targetCurrency: 'btc' | 'usdca' | 'algo';
 }
 
 router.post('/', async (req, res) => {
   try {
-    const { userID, amountUSD, targetCurrency = 'btc' }: DepositRequest = req.body;
+    const { amountUSD, targetCurrency = 'btc' }: DepositRequest = req.body;
+    const authHeader = req.headers.authorization;
 
-    // Validate request
-    if (!userID) {
-      return res.status(400).json({
-        error: 'Missing required parameter: userID'
+    // Validate JWT authentication
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        error: 'Authorization token required'
       });
     }
 
+    // Extract and verify JWT token
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded) {
+      return res.status(401).json({
+        error: 'Invalid or expired token'
+      });
+    }
+
+    const userID = decoded.userId;
+    console.log('🔐 Authenticated user for deposit:', userID);
+
+    // Validate request
     if (!amountUSD || amountUSD < 1 || amountUSD > 10000) {
       return res.status(400).json({
         error: 'Invalid amount. Must be between $1 and $10,000.'
@@ -34,7 +49,7 @@ router.post('/', async (req, res) => {
       });
     }
     
-    console.log('🔐 Processing deposit for user:', userID);
+    console.log('💰 Processing deposit for user:', userID);
     
     // Get user from database
     const { data: user, error: userError } = await supabase
