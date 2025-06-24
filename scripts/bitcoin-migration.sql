@@ -86,6 +86,10 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_nfts_asset_id ON portfolio_nfts(algoran
 CREATE INDEX IF NOT EXISTS idx_position_nfts_portfolio_id ON position_nfts(portfolio_id);
 CREATE INDEX IF NOT EXISTS idx_position_nfts_blockchain ON position_nfts(blockchain);
 CREATE INDEX IF NOT EXISTS idx_position_nfts_cryptocurrency ON position_nfts(cryptocurrency);
+CREATE INDEX IF NOT EXISTS idx_investments_user_id ON investments(user_id);
+CREATE INDEX IF NOT EXISTS idx_investments_target_asset ON investments(target_asset);
+CREATE INDEX IF NOT EXISTS idx_investments_status ON investments(status);
+CREATE INDEX IF NOT EXISTS idx_investments_created_at ON investments(created_at);
 
 -- Update users table to include Bitcoin-focused fields
 ALTER TABLE users 
@@ -97,6 +101,38 @@ ADD COLUMN IF NOT EXISTS custody_status VARCHAR(20) DEFAULT 'custodial';
 ALTER TABLE users 
 ADD CONSTRAINT check_custody_status 
 CHECK (custody_status IN ('custodial', 'self_custody', 'chain_key'));
+
+-- Create investments table for Bitcoin + Algorand investments
+CREATE TABLE IF NOT EXISTS investments (
+  investment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  wallet_id UUID REFERENCES wallets(wallet_id) ON DELETE SET NULL,
+  investment_type VARCHAR(50) NOT NULL,
+  target_asset VARCHAR(10) NOT NULL,
+  amount_usd DECIMAL(18,2) NOT NULL,
+  estimated_btc DECIMAL(18,8),
+  estimated_algo DECIMAL(18,6),
+  bitcoin_price_usd DECIMAL(18,2),
+  algo_price_usd DECIMAL(18,6),
+  fees_paid DECIMAL(18,6),
+  moonpay_url TEXT,
+  moonpay_transaction_id VARCHAR(128),
+  status VARCHAR(20) DEFAULT 'pending_payment',
+  risk_acknowledged BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Add constraint for investment status
+ALTER TABLE investments 
+ADD CONSTRAINT check_investment_status 
+CHECK (status IN ('pending_payment', 'processing', 'completed', 'failed', 'cancelled'));
+
+-- Add constraint for target assets
+ALTER TABLE investments 
+ADD CONSTRAINT check_target_asset 
+CHECK (target_asset IN ('BTC', 'ALGO', 'USDC'));
 
 -- Update badge categories for Bitcoin-first platform
 UPDATE badges SET category = 'bitcoin_investment' WHERE category = 'first_steps';

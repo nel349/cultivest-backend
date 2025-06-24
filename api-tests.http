@@ -123,16 +123,15 @@ GET {{baseUrl}}/wallet/balance
 
 # --- Fiat-to-USDCa Deposit ---
 
-### 7. Initiate Deposit (requires Authentication)
+### 7. Initiate Deposit
 # @name initiateDeposit
 POST {{baseUrl}}/deposit/initiate
 Content-Type: application/json
-# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
 
 {
-  "amount": 10,
-  "fiatCurrency": "USD",
-  "paymentMethod": "MoonPay" // or "Flutterwave"
+  "userID": "34f9176d-172d-431d-adb2-000d6459d4d2",
+  "amountUSD": 10,
+  "targetCurrency": "usdca"
 }
 
 ### 8. Simulate Deposit Webhook (for testing your backend's webhook endpoint)
@@ -251,3 +250,180 @@ Content-Type: application/json
   "spendingAmount": 3.50,
   "spendingCategory": "Coffee"
 }
+
+# --- Bitcoin Investment APIs (NEW) ---
+
+### 17. Bitcoin Investment - Initiate (Requires Authentication & Risk Acceptance)
+# @name initiateBitcoinInvestment
+POST {{baseUrl}}/investment/bitcoin/initiate
+Content-Type: application/json
+# Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
+  "amountUSD": 25,
+  "riskAccepted": true,
+  "investmentType": "market_buy"
+}
+
+### 18. Bitcoin Investment - Without Risk Acceptance (Should Fail)
+# @name bitcoinInvestmentNoRisk
+POST {{baseUrl}}/investment/bitcoin/initiate
+Content-Type: application/json
+# Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "amountUSD": 25,
+  "riskAccepted": false
+}
+
+### 19. Bitcoin Investment - Invalid Amount (Should Fail)
+# @name bitcoinInvestmentInvalidAmount
+POST {{baseUrl}}/investment/bitcoin/initiate
+Content-Type: application/json
+# Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "amountUSD": 0.50,
+  "riskAccepted": true
+}
+
+### 20. Get Bitcoin Investment Positions (Requires Authentication)
+# @name getBitcoinPositions
+POST {{baseUrl}}/investment/bitcoin/positions
+Content-Type: application/json
+# Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd"
+}
+
+### 21. Get Multi-Chain Portfolio Overview (Requires Authentication)
+# @name getPortfolioOverview
+POST {{baseUrl}}/investment/portfolio
+Content-Type: application/json
+
+# Authorization: Bearer YOUR_JWT_TOKEN_HERE
+{
+  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd"
+}
+
+### 22. Bitcoin Deposit - Direct Bitcoin Purchase
+# @name initiateBitcoinDeposit
+POST {{baseUrl}}/deposit/initiate
+Content-Type: application/json
+
+{
+  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
+  "amountUSD": 50,
+  "targetCurrency": "btc"
+}
+
+### 23. Algorand Deposit - USDCa Purchase
+# @name initiateAlgorandDeposit
+POST {{baseUrl}}/deposit/initiate
+Content-Type: application/json
+
+{
+  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
+  "amountUSD": 30,
+  "targetCurrency": "usdca"
+}
+
+### 24. Deposit Status Check
+# @name checkDepositStatus
+GET {{baseUrl}}/deposit/status/9d6c3aac-61f6-4b52-8a54-d4f30913f055?userID=6ed81d5d-d15b-41f1-825c-8eff55a1a9fd
+
+### 25. Calculate Bitcoin Investment Fees
+# @name calculateBitcoinFees
+GET {{baseUrl}}/deposit/calculate-fees?amountUSD=100&currency=btc
+
+# --- Multi-Chain Wallet Tests ---
+
+### 26. Create Multi-Chain Wallet (Bitcoin + Algorand)
+# @name createMultiChainWallet
+POST {{baseUrl}}/wallet/create
+Content-Type: application/json
+
+{
+  "userId": "YOUR_USER_ID_HERE"
+}
+
+### 27. Get Multi-Chain Wallet Balance (Database + Live)
+# @name getMultiChainBalance
+GET {{baseUrl}}/wallet/balance?userId=YOUR_USER_ID_HERE&live=true
+
+# --- Authentication Flow for Testing ---
+
+### 28. Complete Authentication Flow - Step 1: Signup
+# @name testSignup
+POST {{baseUrl}}/auth/signup
+Content-Type: application/json
+
+{
+  "phoneNumber": "+1234567890",
+  "name": "Bitcoin Test User",
+  "country": "USA"
+}
+
+### 29. Complete Authentication Flow - Step 2: Verify OTP
+# @name testVerifyOtp
+POST {{baseUrl}}/auth/verify-otp
+Content-Type: application/json
+
+{
+  "userID": "USER_ID_FROM_STEP_1",
+  "otpCode": "OTP_CODE_FROM_SMS"
+}
+
+# --- Debug & Status Endpoints ---
+
+### 30. Test Bitcoin Wallet Generation (Debug)
+GET {{baseUrl}}/debug/bitcoin-status
+
+### 31. Test MoonPay Bitcoin Integration
+POST {{baseUrl}}/moonpay/sign-url
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "url": "https://buy-sandbox.moonpay.com?apiKey=pk_test_123&currencyCode=btc&baseCurrencyAmount=25&walletAddress=tb1qtest"
+}
+
+# --- Portfolio NFT Tests (Future Implementation) ---
+
+### 32. Create Portfolio NFT (Future)
+# @name createPortfolioNFT
+POST {{baseUrl}}/nft/portfolio/create
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "portfolioValue": 100,
+  "assets": ["BTC", "ALGO"]
+}
+
+### 33. Get Portfolio NFT Status (Future)
+# @name getPortfolioNFT
+GET {{baseUrl}}/nft/portfolio
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+# --- Testing Instructions ---
+# 
+# To test the Bitcoin investment flow:
+# 1. Run signup (#28) with a real phone number
+# 2. Get OTP via SMS and verify (#29) 
+# 3. Copy the JWT token from response
+# 4. Replace "YOUR_JWT_TOKEN_HERE" in tests #17-27
+# 5. Test Bitcoin investment initiation (#17)
+# 6. Test portfolio overview (#21)
+# 7. Test Bitcoin positions (#20)
+#
+# Expected Responses:
+# - #17: Should return MoonPay URL for Bitcoin purchase
+# - #18: Should fail with risk disclosure requirement
+# - #19: Should fail with invalid amount error
+# - #20: Should return Bitcoin investment positions
+# - #21: Should return complete portfolio with BTC + ALGO breakdown
+# - #22: Should initiate Bitcoin deposit via MoonPay
+# - #23: Should initiate USDCa deposit via MoonPay

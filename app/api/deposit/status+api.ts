@@ -1,29 +1,34 @@
-import express from 'express';
-import { supabase } from '../../../utils/supabase';
+import express from "express";
+import { supabase } from "../../../utils/supabase";
 
 const router = express.Router();
 
-router.get('/:transactionId', async (req, res) => {
-  try {
-    const { transactionId } = req.params;
-    const authHeader = req.headers.authorization;
+router.get("/:transactionId", async (req, res) => {
+    try {
+        const { transactionId } = req.params;
+        const { userID } = req.query;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Authorization token required' });
-    }
+        if (!userID) {
+            return res
+                .status(400)
+                .json({ error: "userID query parameter required" });
+        }
 
-    // Extract user from JWT (simplified - in production, decode and verify JWT)
-    const token = authHeader.split(' ')[1];
-    
-    // Get deposit record with user verification
-    const { data: deposit, error: depositError } = await supabase
-      .from('deposits')
-      .select(`
+        console.log("📊 Checking deposit status:", { transactionId, userID });
+
+        // Get deposit record with user verification
+        const { data: deposit, error: depositError } = await supabase
+            .from("deposits")
+            .select(
+                `
         deposit_id,
         user_id,
         amount_usd,
         amount_algo,
         amount_usdca,
+        amount_btc,
+        target_currency,
+        target_address,
         status,
         fees_paid,
         conversion_rate,
@@ -34,111 +39,81 @@ router.get('/:transactionId', async (req, res) => {
         updated_at,
         completed_at,
         expires_at
-      `)
-      .eq('deposit_id', transactionId)
-      .eq('user_id', token) // Verify user owns this deposit
-      .single();
+      `
+            )
+            .eq("deposit_id", transactionId)
+            .eq("user_id", userID) // Verify user owns this deposit
+            .single();
 
-    if (depositError || !deposit) {
-      return res.status(404).json({ 
-        error: 'Deposit not found or access denied' 
-      });
+        if (depositError || !deposit) {
+            return res.status(404).json({
+                error: "Deposit not found or access denied",
+            });
+        }
+
+        // Calculate progress percentage
+        const statusProgress = {
+            pending_payment: 25,
+            processing: 50,
+            crypto_received: 75,
+            completed: 100,
+            failed: 0,
+            cancelled: 0,
+            expired: 0,
+        };
+
+        const progress =
+            statusProgress[deposit.status as keyof typeof statusProgress] || 0;
+
+        // Check if deposit has expired
+        const isExpired = new Date() > new Date(deposit.expires_at);
+        const effectiveStatus =
+            isExpired && deposit.status === "pending_payment"
+                ? "expired"
+                : deposit.status;
+
+        // Format response
+        const response = {
+            success: true,
+            deposit: {
+                id: deposit.deposit_id,
+                userId: deposit.user_id,
+                amount: {
+                    usd: deposit.amount_usd,
+                    crypto:
+                        deposit.target_currency === "btc"
+                            ? deposit.amount_btc
+                            : deposit.target_currency === "algo"
+                            ? deposit.amount_algo
+                            : deposit.amount_usdca,
+                },
+                currency: deposit.target_currency,
+                targetAddress: deposit.target_address,
+                status: effectiveStatus,
+                progress: progress,
+                fees: deposit.fees_paid,
+                conversionRate: deposit.conversion_rate,
+                transactions: {
+                    moonpay: deposit.moonpay_transaction_id,
+                    blockchain: deposit.algorand_tx_id,
+                },
+                timestamps: {
+                    created: deposit.created_at,
+                    updated: deposit.updated_at,
+                    completed: deposit.completed_at,
+                    expires: deposit.expires_at,
+                },
+                error: deposit.error_message,
+            },
+        };
+
+        return res.json(response);
+    } catch (error) {
+        console.error("Deposit status check error:", error);
+        return res.status(500).json({
+            error: "Internal server error while checking deposit status",
+        });
     }
-
-    // Calculate progress percentage
-    const statusProgress = {
-      'pending_payment': 25,
-      'algo_received': 50,
-      'converting': 75,
-      'completed': 100,
-      'failed': 0,
-      'cancelled': 0
-    };
-
-    const progress = statusProgress[deposit.status as keyof typeof statusProgress] || 0;
-
-    // Check if deposit has expired
-    const isExpired = new Date() > new Date(deposit.expires_at);
-    const effectiveStatus = isExpired && deposit.status === 'pending_payment' 
-      ? 'expired' 
-      : deposit.status;
-
-    return res.json({
-      success: true,
-      deposit: {
-        transactionId: deposit.deposit_id,
-        status: effectiveStatus,
-        progress,
-        amountUSD: deposit.amount_usd,
-        amountALGO: deposit.amount_algo,
-        amountUSDCa: deposit.amount_usdca,
-        fees: deposit.fees_paid,
-        conversionRate: deposit.conversion_rate,
-        moonpayTransactionId: deposit.moonpay_transaction_id,
-        algorandTxId: deposit.algorand_tx_id,
-        errorMessage: deposit.error_message,
-        createdAt: deposit.created_at,
-        updatedAt: deposit.updated_at,
-        completedAt: deposit.completed_at,
-        expiresAt: deposit.expires_at,
-        isExpired
-      },
-      statusDescription: getStatusDescription(effectiveStatus),
-      nextSteps: getNextSteps(effectiveStatus)
-    });
-
-  } catch (error) {
-    console.error('Deposit status error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
 });
-
-function getStatusDescription(status: string): string {
-  const descriptions = {
-    'pending_payment': 'Waiting for payment completion in MoonPay',
-    'algo_received': 'ALGO received, preparing for conversion',
-    'converting': 'Converting ALGO to USDCa via Algorand DEX',
-    'completed': 'USDCa successfully added to your wallet',
-    'failed': 'Deposit failed - refund initiated',
-    'cancelled': 'Deposit cancelled by user',
-    'expired': 'Payment link expired - please initiate a new deposit'
-  };
-  return descriptions[status as keyof typeof descriptions] || 'Unknown status';
-}
-
-function getNextSteps(status: string): string[] {
-  const nextSteps = {
-    'pending_payment': [
-      'Complete payment in the MoonPay window',
-      'Wait for ALGO to arrive in your wallet',
-      'Conversion to USDCa will happen automatically'
-    ],
-    'algo_received': [
-      'ALGO detected in your wallet',
-      'Automatic conversion to USDCa will begin shortly'
-    ],
-    'converting': [
-      'ALGO is being converted to USDCa',
-      'This usually takes 1-2 minutes'
-    ],
-    'completed': [
-      'Your USDCa is ready for investing!',
-      'Check your wallet balance to see the funds'
-    ],
-    'failed': [
-      'Contact support if you completed payment',
-      'Refund will be processed automatically'
-    ],
-    'cancelled': [
-      'You can initiate a new deposit anytime',
-      'No charges were made to your payment method'
-    ],
-    'expired': [
-      'Click "Fund Wallet" to create a new payment link',
-      'Payment links expire after 24 hours for security'
-    ]
-  };
-  return nextSteps[status as keyof typeof nextSteps] || [];
-}
 
 export default router;

@@ -35,6 +35,9 @@ import walletCreateRoutes from './app/api/wallet/create+api';
 import walletMnemonicRoutes from './app/api/wallet/mnemonic+api';
 import moonpaySignUrlRoutes from './app/api/moonpay/sign-url+api';
 import optInUsdcaRoutes from './app/api/debug/opt-in-usdca+api';
+import bitcoinInvestmentInitiateRoutes from './app/api/investment/bitcoin/initiate+api';
+import bitcoinInvestmentPositionsRoutes from './app/api/investment/bitcoin/positions+api';
+import investmentPortfolioRoutes from './app/api/investment/portfolio+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -102,6 +105,11 @@ apiRouter.use('/debug/algorand-status', debugAlgorandStatusRoutes);
 apiRouter.use('/debug/wallet-raw', debugWalletRawRoutes);
 apiRouter.use('/wallet/create', walletCreateRoutes);
 apiRouter.use('/moonpay/sign-url', moonpaySignUrlRoutes);
+
+// Bitcoin Investment APIs
+apiRouter.use('/investment/bitcoin/initiate', bitcoinInvestmentInitiateRoutes);
+apiRouter.use('/investment/bitcoin/positions', bitcoinInvestmentPositionsRoutes);
+apiRouter.use('/investment/portfolio', investmentPortfolioRoutes);
 
 // opt in usdca
 apiRouter.use('/debug/opt-in-usdca', optInUsdcaRoutes);
