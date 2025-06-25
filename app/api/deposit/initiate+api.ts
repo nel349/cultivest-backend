@@ -96,6 +96,9 @@ router.post('/', async (req, res) => {
     // Generate deposit ID
     const depositId = uuidv4();
 
+    // Map target currency for database storage (crypto -> usdca)
+    const dbTargetCurrency = targetCurrency === 'crypto' ? 'usdca' : targetCurrency;
+
     // Create deposit record
     const { data: deposit, error: depositError } = await supabase
       .from('deposits')
@@ -104,7 +107,7 @@ router.post('/', async (req, res) => {
         user_id: user.user_id,
         wallet_id: wallet.wallet_id,
         amount_usd: amountUSD,
-        target_currency: targetCurrency,
+        target_currency: dbTargetCurrency,
         target_address: walletAddress,
         status: 'pending_payment',
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
@@ -119,8 +122,8 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Map target currency to MoonPay currency code
-    const moonPayCurrency = targetCurrency === 'crypto' ? 'usdca' : targetCurrency; // Default 'crypto' to USDCa for now
+    // Use the same mapped currency for MoonPay
+    const moonPayCurrency = dbTargetCurrency;
     
     // Generate MoonPay widget URL
     const moonPayUrl = moonPayService.generateWidgetUrl({
