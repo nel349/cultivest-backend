@@ -37,6 +37,7 @@ import optInUsdcaRoutes from './app/api/debug/opt-in-usdca+api';
 import bitcoinInvestmentInitiateRoutes from './app/api/investment/bitcoin/initiate+api';
 import bitcoinInvestmentPositionsRoutes from './app/api/investment/bitcoin/positions+api';
 import investmentPortfolioRoutes from './app/api/investment/portfolio+api';
+import pricesRoutes from './app/api/prices+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -108,6 +109,9 @@ apiRouter.use('/moonpay/sign-url', moonpaySignUrlRoutes);
 apiRouter.use('/investment/bitcoin/initiate', bitcoinInvestmentInitiateRoutes);
 apiRouter.use('/investment/bitcoin/positions', bitcoinInvestmentPositionsRoutes);
 apiRouter.use('/investment/portfolio', investmentPortfolioRoutes);
+
+// Cryptocurrency Prices API
+apiRouter.use('/prices', pricesRoutes);
 
 // opt in usdca
 apiRouter.use('/debug/opt-in-usdca', optInUsdcaRoutes);
