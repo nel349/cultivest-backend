@@ -38,6 +38,8 @@ import bitcoinInvestmentInitiateRoutes from './app/api/investment/bitcoin/initia
 import bitcoinInvestmentPositionsRoutes from './app/api/investment/bitcoin/positions+api';
 import investmentPortfolioRoutes from './app/api/investment/portfolio+api';
 import pricesRoutes from './app/api/prices+api';
+import smartContractRoutes from './app/api/smart-contract+api';
+import testSmartContractRoutes from './app/api/test-smart-contract+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -115,6 +117,10 @@ apiRouter.use('/prices', pricesRoutes);
 
 // opt in usdca
 apiRouter.use('/debug/opt-in-usdca', optInUsdcaRoutes);
+
+// Smart Contract APIs
+apiRouter.use('/smart-contract', smartContractRoutes);
+apiRouter.use('/test-smart-contract', testSmartContractRoutes);
 
 app.use('/api/v1', apiRouter);
 

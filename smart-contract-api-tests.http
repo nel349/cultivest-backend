@@ -1,0 +1,58 @@
+### Smart Contract API Tests
+### Base URL: http://localhost:3000/api/v1
+
+@baseUrl = http://localhost:3000/api/v1
+
+### Test Mock Smart Contract - Deploy and Call HelloWorld
+POST {{baseUrl}}/test-smart-contract/hello-world
+Content-Type: application/json
+
+{
+  "name": "Norman",
+  "userAddress": "ALGORAND_TEST_ADDRESS_123456789"
+}
+
+###
+
+### Test Mock Smart Contract - Get Contract Info
+GET http://localhost:3000/api/v1/test-smart-contract/hello-world/12345
+
+###
+
+### Test Mock Smart Contract - Call Existing Contract
+POST http://localhost:3000/api/v1/test-smart-contract/hello-world/12345/call
+Content-Type: application/json
+
+{
+  "name": "Norman",
+  "userAddress": "ALGORAND_TEST_ADDRESS_123456789"
+}
+
+###
+
+### Real Smart Contract - Deploy and Call HelloWorld (requires real Algorand setup)
+POST http://localhost:3000/api/v1/smart-contract/hello-world
+Content-Type: application/json
+
+{
+  "name": "Norman",
+  "userAddress": "YOUR_REAL_ALGORAND_ADDRESS_HERE"
+}
+
+###
+
+### Real Smart Contract - Get Contract Info (replace with real App ID)
+GET http://localhost:3000/api/v1/smart-contract/hello-world/123456
+
+###
+
+### Real Smart Contract - Call Existing Contract (replace with real App ID)
+POST http://localhost:3000/api/v1/smart-contract/hello-world/123456/call
+Content-Type: application/json
+
+{
+  "name": "Norman",
+  "userAddress": "YOUR_REAL_ALGORAND_ADDRESS_HERE"
+}
+
+### 

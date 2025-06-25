@@ -10,7 +10,7 @@ import * as path from 'node:path'
 Config.configure({
   logger: consoleLogger,
   debug: true,
-  //  traceAll: true,
+   traceAll: true,
 })
 registerDebugEventHandlers()
 
