@@ -1,4 +1,4 @@
-import { Contract, GlobalState, uint64, log, op, assert, Txn, Account, Bytes, contract } from '@algorandfoundation/algorand-typescript';
+import { Contract, GlobalState, uint64, log, op, assert, Txn, Account, Bytes, contract, BoxMap } from '@algorandfoundation/algorand-typescript';
 import { abimethod } from '@algorandfoundation/algorand-typescript';
 
 /**
@@ -6,8 +6,7 @@ import { abimethod } from '@algorandfoundation/algorand-typescript';
  * Mints individual portfolio tokens that reference Position NFT token IDs
  * Each portfolio token represents a collection of position tokens owned by a user
  * 
- * Note: For MVP, we'll store minimal state in global storage and use off-chain indexing
- * for detailed portfolio metadata. In production, we can upgrade to use box storage.
+ * Uses box storage to maintain on-chain mappings of positions to portfolios
  */
 @contract({
   name: 'CultivestPortfolioNFT',
@@ -30,6 +29,14 @@ export class CultivestPortfolioNFT extends Contract {
   authorizedMinter = GlobalState<Account>();
   contractName = GlobalState<string>();
 
+  // Box storage for position-to-portfolio mappings
+  // Key: positionTokenId (uint64) -> Value: portfolioTokenId (uint64)
+  positionToPortfolio = BoxMap<uint64, uint64>({ keyPrefix: 'pos2port' });
+  
+  // Box storage for portfolio position counts
+  // Key: portfolioTokenId (uint64) -> Value: positionCount (uint64)
+  portfolioPositionCount = BoxMap<uint64, uint64>({ keyPrefix: 'portcount' });
+
   /**
    * Initialize the Portfolio NFT contract
    */
@@ -48,8 +55,6 @@ export class CultivestPortfolioNFT extends Contract {
 
   /**
    * Mint new portfolio token for a user
-   * For MVP: Portfolio metadata is stored off-chain using the logged events
-   * The contract only tracks basic state and emits detailed events for indexing
    * 
    * @param owner - The Algorand address that will own this portfolio token
    * @param level - Initial money tree level (1-5)
@@ -73,6 +78,9 @@ export class CultivestPortfolioNFT extends Contract {
     this.nextTokenId.value = tokenId + 1;
     this.totalSupply.value = this.totalSupply.value + 1;
     
+    // Initialize portfolio position count to 0
+    this.portfolioPositionCount(tokenId).value = 0;
+    
     // Log detailed minting event for off-chain indexing
     log(op.concat(Bytes('portfolio_minted:'), op.itob(tokenId)));
     log(op.concat(Bytes('portfolio_owner:'), owner.bytes));
@@ -85,7 +93,7 @@ export class CultivestPortfolioNFT extends Contract {
 
   /**
    * Add position token to a portfolio token
-   * For MVP: This is tracked off-chain, contract just logs the assignment
+   * Properly stores the mapping on-chain using box storage
    */
   @abimethod()
   addPositionToPortfolio(
@@ -101,14 +109,29 @@ export class CultivestPortfolioNFT extends Contract {
     const isAuthorized = Txn.sender === this.authorizedMinter.value;
     assert(isOwner || isAuthorized);
     
+    // Check if position is already assigned to a portfolio
+    const existingPortfolio = this.positionToPortfolio(positionTokenId);
+    if (existingPortfolio.exists) {
+      assert(false, 'Position already assigned to a portfolio');
+    }
+    
+    // Store the position-to-portfolio mapping
+    this.positionToPortfolio(positionTokenId).value = portfolioTokenId;
+    
+    // Increment position count for this portfolio
+    const currentCount = this.portfolioPositionCount(portfolioTokenId).value;
+    this.portfolioPositionCount(portfolioTokenId).value = currentCount + 1;
+    
     // Log assignment event for off-chain tracking
     log(op.concat(Bytes('position_added_to_portfolio:'), op.itob(portfolioTokenId)));
     log(op.concat(Bytes('position_token_id:'), op.itob(positionTokenId)));
     log(op.concat(Bytes('portfolio_owner:'), owner.bytes));
+    log(op.concat(Bytes('portfolio_position_count:'), op.itob(currentCount + 1)));
   }
 
   /**
    * Remove position token from a portfolio token
+   * Properly removes the on-chain mapping
    */
   @abimethod()
   removePositionFromPortfolio(
@@ -124,10 +147,52 @@ export class CultivestPortfolioNFT extends Contract {
     const isAuthorized = Txn.sender === this.authorizedMinter.value;
     assert(isOwner || isAuthorized);
     
+    // Verify position is actually in this portfolio
+    const currentPortfolio = this.positionToPortfolio(positionTokenId);
+    assert(currentPortfolio.exists && currentPortfolio.value === portfolioTokenId, 
+           'Position not in specified portfolio');
+    
+    // Remove the position-to-portfolio mapping
+    this.positionToPortfolio(positionTokenId).delete();
+    
+    // Decrement position count for this portfolio
+    const currentCount = this.portfolioPositionCount(portfolioTokenId).value;
+    assert(currentCount > 0, 'Portfolio has no positions to remove');
+    this.portfolioPositionCount(portfolioTokenId).value = currentCount - 1;
+    
     // Log removal event for off-chain tracking
     log(op.concat(Bytes('position_removed_from_portfolio:'), op.itob(portfolioTokenId)));
     log(op.concat(Bytes('position_token_id:'), op.itob(positionTokenId)));
     log(op.concat(Bytes('portfolio_owner:'), owner.bytes));
+    log(op.concat(Bytes('portfolio_position_count:'), op.itob(currentCount - 1)));
+  }
+
+  /**
+   * Get which portfolio a position belongs to
+   */
+  @abimethod({ readonly: true })
+  getPositionPortfolio(positionTokenId: uint64): uint64 {
+    assert(positionTokenId > 0);
+    
+    const portfolio = this.positionToPortfolio(positionTokenId);
+    if (portfolio.exists) {
+      return portfolio.value;
+    }
+    return 0; // Position not assigned to any portfolio
+  }
+
+  /**
+   * Get number of positions in a portfolio
+   */
+  @abimethod({ readonly: true })
+  getPortfolioPositionCount(portfolioTokenId: uint64): uint64 {
+    assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
+    
+    const count = this.portfolioPositionCount(portfolioTokenId);
+    if (count.exists) {
+      return count.value;
+    }
+    return 0; // Portfolio has no positions
   }
 
   /**
