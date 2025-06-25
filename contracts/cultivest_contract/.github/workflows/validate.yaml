@@ -1,0 +1,14 @@
+name: Pull Request validation
+
+on: [pull_request]
+
+
+jobs:
+  cultivest_contract-contracts-ci:
+    name: Run cultivest_contract-contracts validation
+    uses: ./.github/workflows/cultivest_contract-contracts-ci.yaml
+
+  cultivest_contract-frontend-ci:
+    name: Run cultivest_contract-frontend validation
+    uses: ./.github/workflows/cultivest_contract-frontend-ci.yaml
+

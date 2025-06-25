@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.vscode/**'
+      - '.idea/**'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  cultivest_contract-contracts-validate:
+    name: Run cultivest_contract-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/cultivest_contract-contracts-ci.yaml
+
+  cultivest_contract-contracts-release:
+    name: Run cultivest_contract-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/cultivest_contract-contracts-cd.yaml
+    needs: cultivest_contract-contracts-validate
+
+  cultivest_contract-frontend-validate:
+    name: Run cultivest_contract-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/cultivest_contract-frontend-ci.yaml
+
+  cultivest_contract-frontend-release:
+    name: Run cultivest_contract-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/cultivest_contract-frontend-cd.yaml
+    needs: cultivest_contract-frontend-validate

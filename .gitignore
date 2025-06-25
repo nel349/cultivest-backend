@@ -16,3 +16,4 @@ build/
 .DS_Store
 thumbs.db
 .claude/
+contracts/cultivest_contract/projects/cultivest_contract-contracts/.algokit/*
