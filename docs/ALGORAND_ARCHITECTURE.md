@@ -1,94 +1,244 @@
 # Cultivest Algorand Architecture Guide
 
-## 🏗️ Gas-Efficient Portfolio NFT System
+## 🚀 Efficient Nested NFT System
 
-### Architecture Decision: Hybrid ASA + Smart Contract
+### Architecture Decision: Single Contract, Multiple Tokens
 
-We've chosen a **hybrid approach** that balances cost efficiency with functionality:
+We've implemented an **efficient nested NFT approach** using two smart contracts that mint multiple tokens:
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Portfolio     │    │   Smart          │    │   IPFS          │
-│   ASA (NFT)     │◄──►│   Contract       │◄──►│   Metadata      │
-│                 │    │   (Logic)        │    │   Storage       │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                 CULTIVEST EFFICIENT NFT SYSTEM                 │
+├─────────────────────────────────────────────────────────────────┤
+│  PORTFOLIO NFT CONTRACT (App ID: 1000)                        │
+│  ├── Portfolio Token #1 (owns Position tokens 1,2,3)          │
+│  ├── Portfolio Token #2 (owns Position tokens 4,5)            │
+│  ├── Portfolio Token #3 (owns Position tokens 6,7,8,9)        │
+│  └── Aggregates metrics, manages ownership                     │
+├─────────────────────────────────────────────────────────────────┤
+│  POSITION NFT CONTRACT (App ID: 2000)                         │
+│  ├── Bitcoin Position Token #1 (10,000 sats + key ref)        │
+│  ├── Algorand Position Token #2 (5 ALGO)                      │
+│  ├── USDC Position Token #3 ($25 USDC)                        │
+│  ├── Bitcoin Position Token #4 (50,000 sats + key ref)        │
+│  └── Individual holdings + custodial key references            │
+├─────────────────────────────────────────────────────────────────┤
+│  COST EFFICIENCY                                               │
+│  ├── 2 contract deployments total (not per-position)           │
+│  ├── 0.001 ALGO per Position token mint                        │
+│  ├── 0.001 ALGO per Portfolio token mint                       │
+│  └── Unlimited tokens per contract                             │
+├─────────────────────────────────────────────────────────────────┤
+│  CUSTODIAL INTEGRATION                                         │
+│  ├── Position token metadata includes encrypted key refs       │
+│  ├── Key re-encryption on Position token transfer              │
+│  ├── Off-chain event processing via Algorand Indexer           │
+│  └── Opt-out mechanism for self-custody                        │
+├─────────────────────────────────────────────────────────────────┤
+│  OFF-CHAIN INTEGRATION                                         │
+│  ├── Backend APIs (investment tracking)                        │
+│  ├── React Native display                                      │
+│  ├── Algorand Indexer (event processing)                       │
+│  └── Supabase DB (historical analytics + encrypted keys)       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Breakdown:
+### Implementation Details:
 
-#### 1. **Portfolio ASA (Algorand Standard Asset)**
-- **Purpose**: Actual NFT ownership and transfers
-- **Cost**: ~0.001 ALGO to create
-- **Properties**:
-  - `asset_name`: "Cultivest Portfolio #123"
-  - `unit_name`: "CVSTPF"
-  - `total`: 1 (NFT)
-  - `url`: Points to smart contract or IPFS metadata
+#### **Contract Architecture:**
+- **Language**: Algorand TypeScript (`@algorandfoundation/algorand-typescript`) 
+- **2 Smart Contracts**: Portfolio NFT + Position NFT (not per-token)
+- **Portfolio Tokens**: Containers that reference Position token IDs
+- **Position Tokens**: Individual asset holdings with custodial key references
+- **Box Storage**: Efficient metadata storage for unlimited tokens
+- **Money Tree Levels**: 1-5 based on aggregated portfolio value
+- **Security**: Multi-signature authorization + reentrancy protection
 
-#### 2. **Smart Contract (Application)**
-- **Purpose**: Portfolio logic and state management
-- **Cost**: ~0.001 ALGO per call
-- **Responsibilities**:
-  - Portfolio value calculations
-  - Investment tracking
-  - Performance metrics
-  - Ownership verification
+## 🔧 Nested NFT Implementation
 
-#### 3. **IPFS Metadata**
-- **Purpose**: Rich metadata and images
-- **Cost**: Free (off-chain)
-- **Content**:
-  - Portfolio images/animations
-  - Detailed attributes
-  - Historical data (if needed)
+### Portfolio NFT Contract (Mints Multiple Portfolio Tokens)
 
-## 🔧 Technical Implementation
-
-### Smart Contract Size Optimization
-
-```python
-# ✅ Efficient: Use bytes keys
-total_value_key = Bytes("tv")  # Instead of "total_value_usd"
-btc_holdings_key = Bytes("btc")  # Instead of "btc_holdings"
-
-# ✅ Efficient: Pack multiple values
-# Store: BTC(8 bytes) + ALGO(8 bytes) + USDC(8 bytes) = 24 bytes
-holdings_packed = Concat(
-    Itob(btc_amount),
-    Itob(algo_amount), 
-    Itob(usdc_amount)
-)
+```typescript
+@contract({
+  name: 'CultivestPortfolioNFT',
+  stateTotals: { 
+    globalUints: 3,   // nextTokenId, totalSupply, contractVersion
+    globalBytes: 2,   // authorizedMinter, contractName
+    localUints: 0,
+    localBytes: 0,
+    boxes: { count: 10000, bytes: 300 } // Portfolio token metadata
+  }
+})
+export class CultivestPortfolioNFT extends Contract {
+  // Token management
+  nextTokenId = GlobalState<uint64>();
+  totalSupply = GlobalState<uint64>();
+  authorizedMinter = GlobalState<Account>();
+  
+  // Mint new portfolio token
+  @abimethod()
+  mintPortfolio(owner: Account, positionTokenIds: Bytes): uint64 {
+    const tokenId = this.nextTokenId.value;
+    
+    // Store portfolio metadata in box
+    this.boxes(op.itob(tokenId)).value = op.concat(
+      owner.bytes,                    // Portfolio owner
+      op.itob(op.Global.latestTimestamp), // Created timestamp
+      op.itob(1),                     // Initial level
+      op.itob(0),                     // Initial total value
+      positionTokenIds                // Comma-separated position token IDs
+    );
+    
+    this.nextTokenId.value = tokenId + 1;
+    this.totalSupply.value = this.totalSupply.value + 1;
+    
+    log(op.concat(Bytes('portfolio_minted:'), op.itob(tokenId)));
+    return tokenId;
+  }
+}
 ```
 
-### Atomic Transaction Groups
+### Position NFT Contract (Mints Multiple Position Tokens)
 
-```python
-# Group multiple operations atomically
-group_txns = [
-    # 1. Update portfolio contract
-    ApplicationCallTxn(...),
-    # 2. Update position contract  
-    ApplicationCallTxn(...),
-    # 3. Transfer ASA (if needed)
-    AssetTransferTxn(...)
-]
+```typescript
+@contract({
+  name: 'CultivestPositionNFT',
+  stateTotals: { 
+    globalUints: 3,   // nextTokenId, totalSupply, contractVersion
+    globalBytes: 2,   // authorizedMinter, contractName
+    localUints: 0,
+    localBytes: 0,
+    boxes: { count: 100000, bytes: 200 } // Position token metadata
+  }
+})
+export class CultivestPositionNFT extends Contract {
+  // Token management
+  nextTokenId = GlobalState<uint64>();
+  totalSupply = GlobalState<uint64>();
+  authorizedMinter = GlobalState<Account>();
+  
+  // Mint new position token
+  @abimethod()
+  mintPosition(
+    owner: Account,
+    assetType: uint64,     // 1=BTC, 2=ALGO, 3=USDC
+    holdings: uint64,      // satoshis/microALGO/microUSDC
+    purchaseValueUSD: uint64,
+    privateKeyRef: Bytes   // Reference to encrypted key
+  ): uint64 {
+    const tokenId = this.nextTokenId.value;
+    
+    // Store position metadata in box
+    this.boxes(op.itob(tokenId)).value = op.concat(
+      owner.bytes,                    // Position owner
+      op.itob(assetType),            // Asset type
+      op.itob(holdings),             // Holdings amount
+      op.itob(purchaseValueUSD),     // Purchase value
+      op.itob(op.Global.latestTimestamp), // Created timestamp
+      privateKeyRef                   // Encrypted key reference
+    );
+    
+    this.nextTokenId.value = tokenId + 1;
+    this.totalSupply.value = this.totalSupply.value + 1;
+    
+    log(op.concat(Bytes('position_minted:'), op.itob(tokenId), Bytes(':'), op.itob(assetType)));
+    return tokenId;
+  }
+}
 ```
 
-### Box Storage for Historical Data
+### Core Methods
 
-```python
-# For large datasets (portfolio history, performance analytics)
-def store_portfolio_history():
-    return Seq([
-        # Create box if it doesn't exist
-        If(BoxLen(Bytes("history")) == Int(0))
-        .Then(BoxCreate(Bytes("history"), Int(2048))),
-        
-        # Append new data point
-        BoxReplace(Bytes("history"), 
-                  BoxLen(Bytes("history")), 
-                  new_data_point)
-    ])
+#### Portfolio NFT Contract Methods:
+```typescript
+// Contract initialization (only on deployment)
+@abimethod({ onCreate: 'require' })
+createApplication(): void
+
+// Mint new portfolio token for user
+@abimethod()
+mintPortfolio(owner: Account, positionTokenIds: Bytes): uint64
+
+// Add position token to portfolio
+@abimethod()
+addPositionToPortfolio(portfolioTokenId: uint64, positionTokenId: uint64): void
+
+// Remove position token from portfolio  
+@abimethod()
+removePositionFromPortfolio(portfolioTokenId: uint64, positionTokenId: uint64): void
+
+// Update portfolio aggregated value
+@abimethod()
+updatePortfolioValue(portfolioTokenId: uint64, newTotalValueUSD: uint64): void
+
+// Transfer portfolio token ownership
+@abimethod()
+transferPortfolio(portfolioTokenId: uint64, newOwner: Account): void
+
+// Query portfolio token data (read-only)
+@abimethod({ readonly: true })
+getPortfolioInfo(portfolioTokenId: uint64): [Account, uint64, uint64, Bytes] // owner, level, totalValue, positionTokenIds
+```
+
+#### Position NFT Contract Methods:
+```typescript
+// Contract initialization (only on deployment)
+@abimethod({ onCreate: 'require' })
+createApplication(): void
+
+// Mint new position token
+@abimethod()
+mintPosition(owner: Account, assetType: uint64, holdings: uint64, 
+             purchaseValueUSD: uint64, privateKeyRef: Bytes): uint64
+
+// Update position token holdings and value
+@abimethod()
+updatePosition(positionTokenId: uint64, newHoldings: uint64, newCurrentValueUSD: uint64): void
+
+// Transfer position token ownership (triggers key re-encryption)
+@abimethod()
+transferPosition(positionTokenId: uint64, newOwner: Account): void
+
+// Burn position token (sell/withdraw all holdings)
+@abimethod()
+burnPosition(positionTokenId: uint64): void
+
+// Query position token data (read-only)
+@abimethod({ readonly: true })
+getPositionInfo(positionTokenId: uint64): [Account, uint64, uint64, uint64, Bytes] // owner, assetType, holdings, currentValue, privateKeyRef
+```
+
+### Event Logging for Off-Chain Processing
+
+#### Portfolio NFT Events:
+```typescript
+// Log portfolio creation
+log('portfolio_created');
+
+// Log position addition/removal
+log(op.concat(Bytes('position_added:'), op.itob(positionNFTAppId)));
+log(op.concat(Bytes('position_removed:'), op.itob(positionNFTAppId)));
+
+// Log portfolio value updates
+log(op.concat(Bytes('portfolio_value_update:'), op.itob(this.totalValueUSD.value)));
+
+// Log portfolio ownership transfers
+log('portfolio_ownership_transfer');
+```
+
+#### Position NFT Events:
+```typescript
+// Log position creation
+log(op.concat(Bytes('position_created:'), op.itob(this.assetType.value)));
+
+// Log position updates
+log(op.concat(Bytes('position_update:'), op.itob(this.currentValueUSD.value)));
+
+// Log position ownership transfers (triggers key re-encryption)
+log(op.concat(Bytes('position_ownership_transfer:'), this.privateKeyRef.value));
+
+// Log position burns
+log('position_burned');
 ```
 
 ## 💰 Cost Analysis
@@ -97,23 +247,34 @@ def store_portfolio_history():
 
 | Operation | Cost (ALGO) | Description |
 |-----------|-------------|-------------|
-| Create Portfolio ASA | 0.001 | One-time NFT creation |
-| Create Smart Contract | 0.001 | One-time contract deployment |
-| Update Portfolio Values | 0.001 | Regular updates |
-| Transfer Portfolio NFT | 0.001 | Ownership transfer |
-| Create Position NFT | 0.001 | Per investment position |
-| Query Portfolio Data | 0.001 | Read operations |
+| Deploy Portfolio Contract | 0.001 | One-time system deployment |
+| Deploy Position Contract | 0.001 | One-time system deployment |
+| Mint Portfolio Token | 0.001 | Per user portfolio creation |
+| Mint Position Token | 0.001 | Per asset position (BTC/ALGO/USDC) |
+| Update Position Metadata | 0.001 | Regular holdings/price updates |
+| Transfer Position Token | 0.001 | Individual asset transfer |
+| Transfer Portfolio Token | 0.001 | Transfer entire portfolio |
+| Burn Position Token | 0.001 | Sell/withdraw specific asset |
+| Query Token Data | 0.001 | Read operations |
 
 ### Total System Cost:
-- **Initial Setup**: ~0.002 ALGO (~$0.0002)
-- **Monthly Updates**: ~0.03 ALGO (~$0.003)
-- **Extremely cost-effective** compared to Ethereum
+- **System Setup**: 0.002 ALGO (one-time, deploy 2 contracts)
+- **New User**: 0.001 ALGO (mint portfolio token)
+- **First Investment (3 positions)**: 0.003 ALGO (mint 3 position tokens)
+- **Monthly Updates**: 0.003-0.03 ALGO (depending on activity)
+- **Position Transfer**: 0.001 ALGO (transfer specific token)
+- **Massively efficient**: 2 contracts support unlimited users/positions
 
 ## 🚀 Scaling Considerations
 
 ### Multi-User Scaling:
 ```
-1,000 users × 12 updates/year × 0.001 ALGO = 12 ALGO/year (~$1.20)
+System deployment: 0.002 ALGO (one-time)
+1,000 users × 1 portfolio token = 1 ALGO
+1,000 users × 3 position tokens = 3 ALGO  
+1,000 users × 3 positions × 12 updates/year = 36 ALGO/year
+1,000 users × 10 position transfers/year = 10 ALGO/year
+Total: 4 ALGO setup + 46 ALGO/year = ~$5/year for 1,000 users
 ```
 
 ### Performance Optimizations:
@@ -129,90 +290,191 @@ batch_update_txns = [
 ]
 ```
 
-#### 2. **Lazy Loading**
-```python
-# Only update when values change significantly
-threshold = Int(100)  # $1.00 threshold
-If(Abs(new_value - old_value) > threshold)
-.Then(update_portfolio())
+#### 2. **Lazy Updates**
+```typescript
+// Only update positions when values change significantly
+const threshold = 100; // $1.00 threshold
+if (Math.abs(newValue - currentValue) > threshold) {
+  await positionNFT.updatePosition(newHoldings, newValueUSD);
+}
 ```
 
-#### 3. **Off-Chain Computation**
-```python
-# Complex calculations done off-chain
-# Smart contract only stores results
-App.globalPut(Bytes("pnl"), precalculated_pnl)
-App.globalPut(Bytes("level"), precalculated_level)
+#### 3. **Aggregated Portfolio Updates**
+```typescript
+// Update portfolio value by aggregating all Position NFTs
+// Done off-chain, then stored on Portfolio NFT
+const totalValue = positions.reduce((sum, pos) => sum + pos.currentValueUSD, 0);
+await portfolioNFT.updatePortfolioValue(totalValue);
+```
+
+#### 4. **Position NFT Caching**
+```typescript
+// Cache Position NFT references to avoid repeated lookups
+const positionNFTIds = await portfolioNFT.getPositionNFTs();
+const cachedPositions = new Map<number, PositionNFTClient>();
 ```
 
 ## 🔒 Security Best Practices
 
 ### 1. **Access Control**
-```python
-# Multi-level access control
-is_owner = Txn.sender() == App.globalGet(Bytes("owner"))
-is_authorized_updater = Txn.sender() == App.globalGet(Bytes("updater"))
-is_creator = Txn.sender() == App.globalGet(Bytes("creator"))
+```typescript
+// Portfolio NFT: Only owner can transfer portfolio
+assert(Txn.sender === this.owner.value);
+
+// Position NFT: Owner or authorized updater can modify
+const isOwner = Txn.sender === this.owner.value;
+const isAuthorized = Txn.sender === this.authorizedUpdater.value;
+assert(isOwner || isAuthorized);
+
+// Portfolio operations: Only backend can add/remove positions
+assert(Txn.sender === this.authorizedUpdater.value);
 ```
 
 ### 2. **Input Validation**
-```python
-# Validate all inputs
-Assert(And(
-    new_value >= Int(0),
-    new_value <= Int(1000000000),  # Max $10M
-    Txn.application_args.length() == Int(3)
-))
+```typescript
+// Validate asset types
+assert(assetType >= 1 && assetType <= 3); // 1=BTC, 2=ALGO, 3=USDC
+
+// Validate holdings amounts
+assert(holdings > 0 && holdings <= MAX_HOLDINGS);
+
+// Validate portfolio references
+assert(portfolioNFTId > 0);
+
+// Validate private key references
+assert(privateKeyRef.length > 0);
 ```
 
-### 3. **Reentrancy Protection**
-```python
-# Algorand's atomic transactions prevent reentrancy
-# But still validate state
-Assert(App.globalGet(Bytes("locked")) == Int(0))
-App.globalPut(Bytes("locked"), Int(1))
-# ... operations ...
-App.globalPut(Bytes("locked"), Int(0))
+### 3. **Ownership Transfer Security**
+```typescript
+// Position NFT transfers trigger off-chain key re-encryption
+@abimethod()
+transferPosition(newOwner: Account): void {
+  assert(Txn.sender === this.owner.value);
+  
+  const oldOwner = this.owner.value;
+  this.owner.value = newOwner;
+  
+  // Log for off-chain key re-encryption
+  log(op.concat(
+    Bytes('key_reencryption_needed:'),
+    this.privateKeyRef.value,
+    Bytes(':'),
+    oldOwner.bytes,
+    Bytes(':'),
+    newOwner.bytes
+  ));
+}
 ```
 
 ## 📊 Monitoring & Analytics
 
 ### On-Chain Events:
-```python
-# Log important events for off-chain indexing
-Log(Concat(
-    Bytes("portfolio_update:"),
-    Itob(App.globalGet(Bytes("tv"))),
-    Bytes(","),
-    Itob(Global.latest_timestamp())
-))
+```typescript
+// Portfolio NFT events
+log(op.concat(
+  Bytes('portfolio_value_update:'),
+  op.itob(this.totalValueUSD.value),
+  Bytes(','),
+  op.itob(op.Global.latestTimestamp)
+));
+
+// Position NFT events with custodial integration
+log(op.concat(
+  Bytes('position_transfer:'),
+  this.privateKeyRef.value,
+  Bytes(','),
+  oldOwner.bytes,
+  Bytes(','),
+  newOwner.bytes
+));
 ```
 
-### Off-Chain Indexing:
-- Use Algorand Indexer API
-- Subscribe to contract events
-- Build analytics dashboard
-- Real-time portfolio tracking
+### Off-Chain Integration:
+- **Algorand Indexer**: Subscribe to Position NFT transfer events
+- **Supabase Database**: Store encrypted private keys and ownership mapping
+- **Key Re-encryption Service**: Automatically re-encrypt keys when Position NFTs transfer
+- **Portfolio Analytics**: Aggregate Position NFT data for dashboard display
+- **Opt-out Detection**: Monitor when users withdraw to self-custody (breaks tracking)
 
-## 🛠️ Development Tools
+## 🚀 Deployment & Integration
 
-### Recommended Stack:
-- **Smart Contracts**: PyTeal (Python) or Reach
-- **Deployment**: Algorand SDK (JavaScript/Python)
-- **Testing**: Algorand Sandbox
-- **Indexing**: Algorand Indexer + Custom API
-- **Frontend**: algosdk.js for web3 integration
+### Current Tech Stack:
+- **Smart Contracts**: Algorand TypeScript (`@algorandfoundation/algorand-typescript`)
+- **Deployment**: AlgoKit with separate deploy configs for Portfolio and Position NFTs
+- **Testing**: AlgoKit test framework with nested NFT interaction tests
+- **Backend Integration**: Node.js + TypeScript clients for both contract types
+- **Frontend**: React Native with nested NFT display and partial transfer UI
+- **Custodial Service**: Supabase + key re-encryption service
+- **Event Processing**: Algorand Indexer + automated key management
 
 ### Local Development:
 ```bash
-# Start Algorand Sandbox
-./sandbox up testnet
+# Deploy Portfolio NFT contract (one contract, unlimited portfolio tokens)
+algokit project deploy localnet portfolio-nft
 
-# Deploy contracts
-python deploy_contracts.py
+# Deploy Position NFT contract (one contract, unlimited position tokens)
+algokit project deploy localnet position-nft
 
-# Run tests
-python test_portfolio_nfts.py
+# Test deployment
+algokit project deploy localnet hello_world  # Reference working contract
+
+# Contract locations
+contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/portfolio-nft/
+contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/position-nft/
 ```
 
-This architecture gives us **maximum efficiency** while maintaining all the features we need for a robust Portfolio NFT system!
+### Integration Points:
+- **Backend APIs**: Generated TypeScript clients for both Portfolio and Position NFTs
+- **React Native**: Display nested NFT structure with drill-down capabilities
+- **Investment Flow**: Create Position NFTs when investments complete, link to Portfolio NFT
+- **Price Updates**: Update individual Position NFT values, aggregate to Portfolio NFT
+- **Transfer Flow**: Handle Position NFT transfers with automatic key re-encryption
+- **Partial Operations**: Enable users to transfer/sell individual positions, not entire portfolio
+
+## ✅ Current Status:
+- ✅ **Current Portfolio NFT**: Flat structure implemented and deployed
+- 🔄 **Efficient Architecture**: Redesign both contracts to mint multiple tokens
+- 🔄 **Position NFT Contract**: Create single contract that mints position tokens
+- 🔄 **Portfolio NFT Refactor**: Convert to token-minting contract
+- 🔄 **Custodial Integration**: Key re-encryption service
+- 🔄 **API Integration**: Support efficient token-based operations
+- 🔄 **Frontend Display**: Token-based NFT structure with partial transfer UI
+
+## 🎨 Use Cases Enabled by Efficient Token Structure:
+
+### 1. **Partial Position Transfers**
+```
+User A: Portfolio Token #1 containing [Position Token #5 (10K sats), Position Token #6 (5 ALGO), Position Token #7 ($25 USDC)]
+User A transfers Position Token #5 (Bitcoin) to User B
+Result: User A keeps Portfolio Token #1 with [Position Token #6, #7]
+        User B receives Position Token #5 (10K sats)
+```
+
+### 2. **Individual Asset Management**
+```
+User wants to:
+- Sell only Bitcoin position → Burn Position Token #5 (Bitcoin)
+- Gift ALGO to friend → Transfer Position Token #6 (Algorand)  
+- Keep USDC for stability → Retain Position Token #7 (USDC)
+```
+
+### 3. **Cross-Chain Custody**
+```
+Position Token Transfer:
+1. Position Token ownership changes on Algorand
+2. Algorand Indexer detects ownership change event
+3. Backend re-encrypts Bitcoin private key for new owner
+4. New owner can access their Bitcoin via Position Token
+```
+
+### 4. **Massive Scalability**
+```
+System Efficiency:
+- 2 contracts deployed once (Portfolio + Position)
+- Unlimited users can mint Portfolio tokens
+- Unlimited positions can be minted as Position tokens
+- No per-user contract deployment needed
+```
+
+This efficient implementation gives us **granular portfolio management** with **unlimited scalability** while maintaining **custodial Bitcoin integration**!

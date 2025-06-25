@@ -13,6 +13,10 @@
     "format": "prettier --write .",
     "test": "vitest run --coverage",
     "test:watch": "vitest watch",
+    "test:nft-position": "vitest run --coverage smart_contracts/position-nft/PositionNFT.e2e.spec.ts",
+    "test:nft-position:watch": "vitest watch smart_contracts/position-nft/PositionNFT.e2e.spec.ts",
+    "test:nft-portfolio": "vitest run --coverage smart_contracts/portfolio-nft/PortfolioNFT.e2e.spec.ts",
+    "test:nft-portfolio:watch": "vitest watch smart_contracts/portfolio-nft/PortfolioNFT.e2e.spec.ts",
     "check-types": "tsc --noEmit"
   },
   "engines": {
