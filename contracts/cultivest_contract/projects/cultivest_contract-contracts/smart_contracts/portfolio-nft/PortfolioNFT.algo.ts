@@ -1,38 +1,49 @@
-import { Contract } from '@algorandfoundation/tealscript';
+import { Contract, GlobalState, uint64, log, op, assert, Txn, Account, Bytes, contract } from '@algorandfoundation/algorand-typescript';
+import { abimethod } from '@algorandfoundation/algorand-typescript';
 
 /**
  * Cultivest Portfolio NFT Smart Contract
  * Tracks multi-chain investment portfolio with Bitcoin-first approach
  */
+@contract({
+  name: 'CultivestPortfolioNFT',
+  stateTotals: { 
+    globalUints: 10,   // level, totalValueUSD, btcHoldings, algoHoldings, usdcHoldings, totalInvested, unrealizedPnL, createdAt, lastUpdate, isLocked
+    globalBytes: 2,    // owner, authorizedUpdater  
+    localUints: 0,
+    localBytes: 0
+  }
+})
 export class CultivestPortfolioNFT extends Contract {
   // Core portfolio state
-  owner = GlobalStateKey<Address>();
-  totalValueUSD = GlobalStateKey<uint64>();
-  level = GlobalStateKey<uint64>();
+  owner = GlobalState<Account>();
+  totalValueUSD = GlobalState<uint64>();
+  level = GlobalState<uint64>();
   
   // Multi-chain holdings (in smallest units)
-  btcHoldings = GlobalStateKey<uint64>(); // satoshis
-  algoHoldings = GlobalStateKey<uint64>(); // microAlgos
-  usdcHoldings = GlobalStateKey<uint64>(); // microUSDC
+  btcHoldings = GlobalState<uint64>(); // satoshis
+  algoHoldings = GlobalState<uint64>(); // microAlgos
+  usdcHoldings = GlobalState<uint64>(); // microUSDC
   
   // Performance tracking
-  totalInvested = GlobalStateKey<uint64>();
-  unrealizedPnL = GlobalStateKey<uint64>();
+  totalInvested = GlobalState<uint64>();
+  unrealizedPnL = GlobalState<uint64>();
   
   // Metadata
-  createdAt = GlobalStateKey<uint64>();
-  lastUpdate = GlobalStateKey<uint64>();
+  createdAt = GlobalState<uint64>();
+  lastUpdate = GlobalState<uint64>();
   
   // Security
-  authorizedUpdater = GlobalStateKey<Address>();
-  isLocked = GlobalStateKey<boolean>();
+  authorizedUpdater = GlobalState<Account>();
+  isLocked = GlobalState<boolean>();
 
   /**
    * Initialize a new Portfolio NFT
    */
+  @abimethod({ onCreate: 'require' })
   createApplication(): void {
-    this.owner.value = this.txn.sender;
-    this.createdAt.value = globals.latestTimestamp;
+    this.owner.value = Txn.sender;
+    this.createdAt.value = op.Global.latestTimestamp;
     this.level.value = 1;
     this.totalValueUSD.value = 0;
     this.totalInvested.value = 0;
@@ -41,10 +52,10 @@ export class CultivestPortfolioNFT extends Contract {
     this.algoHoldings.value = 0;
     this.usdcHoldings.value = 0;
     this.isLocked.value = false;
-    this.lastUpdate.value = globals.latestTimestamp;
+    this.lastUpdate.value = op.Global.latestTimestamp;
     
     // Set authorized updater (Cultivest backend)
-    this.authorizedUpdater.value = this.txn.sender;
+    this.authorizedUpdater.value = Txn.sender;
     
     // Log creation event
     log('portfolio_created');
@@ -53,6 +64,7 @@ export class CultivestPortfolioNFT extends Contract {
   /**
    * Update portfolio holdings and values
    */
+  @abimethod()
   updatePortfolio(
     newBtcHoldings: uint64,
     newAlgoHoldings: uint64,
@@ -60,7 +72,7 @@ export class CultivestPortfolioNFT extends Contract {
     newTotalValueUSD: uint64
   ): void {
     // Security checks
-    assert(this.txn.sender === this.authorizedUpdater.value);
+    assert(Txn.sender === this.authorizedUpdater.value);
     assert(!this.isLocked.value);
     
     // Lock to prevent reentrancy
@@ -79,35 +91,50 @@ export class CultivestPortfolioNFT extends Contract {
     this.updateLevel();
     
     // Update timestamp
-    this.lastUpdate.value = globals.latestTimestamp;
+    this.lastUpdate.value = op.Global.latestTimestamp;
     
     // Unlock
     this.isLocked.value = false;
     
     // Log update event for off-chain indexing
-    log(concat('portfolio_update:', itob(this.totalValueUSD.value)));
+    log(op.concat(Bytes('portfolio_update:'), op.itob(this.totalValueUSD.value)));
   }
 
   /**
    * Record new investment
    */
+  @abimethod()
   recordInvestment(amountUSD: uint64): void {
-    assert(this.txn.sender === this.authorizedUpdater.value);
+    assert(Txn.sender === this.authorizedUpdater.value);
     
     this.totalInvested.value = this.totalInvested.value + amountUSD;
     this.unrealizedPnL.value = this.totalValueUSD.value - this.totalInvested.value;
     
-    log(concat('investment:', itob(amountUSD)));
+    log(op.concat(Bytes('investment:'), op.itob(amountUSD)));
   }
 
   /**
    * Transfer portfolio ownership
    */
-  transferOwnership(newOwner: Address): void {
-    assert(this.txn.sender === this.owner.value);
+  @abimethod()
+  transferOwnership(newOwner: Account): void {
+    assert(Txn.sender === this.owner.value);
     this.owner.value = newOwner;
-    
     log('ownership_transfer');
+  }
+
+  /**
+   * Get portfolio information (read-only)
+   */
+  @abimethod({ readonly: true })
+  getPortfolioInfo(): [uint64, uint64, uint64, uint64, uint64] {
+    return [
+      this.level.value,
+      this.totalValueUSD.value,
+      this.btcHoldings.value,
+      this.algoHoldings.value,
+      this.usdcHoldings.value
+    ];
   }
 
   /**
