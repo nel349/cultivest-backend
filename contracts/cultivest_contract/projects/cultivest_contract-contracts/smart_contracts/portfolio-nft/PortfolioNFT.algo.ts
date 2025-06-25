@@ -3,156 +3,253 @@ import { abimethod } from '@algorandfoundation/algorand-typescript';
 
 /**
  * Cultivest Portfolio NFT Smart Contract
- * Tracks multi-chain investment portfolio with Bitcoin-first approach
+ * Mints individual portfolio tokens that reference Position NFT token IDs
+ * Each portfolio token represents a collection of position tokens owned by a user
+ * 
+ * Note: For MVP, we'll store minimal state in global storage and use off-chain indexing
+ * for detailed portfolio metadata. In production, we can upgrade to use box storage.
  */
 @contract({
   name: 'CultivestPortfolioNFT',
   stateTotals: { 
-    globalUints: 10,   // level, totalValueUSD, btcHoldings, algoHoldings, usdcHoldings, totalInvested, unrealizedPnL, createdAt, lastUpdate, isLocked
-    globalBytes: 2,    // owner, authorizedUpdater  
+    globalUints: 5,   // nextTokenId, totalSupply, contractVersion, maxSupply, positionNFTAppId
+    globalBytes: 2,   // authorizedMinter, contractName
     localUints: 0,
     localBytes: 0
   }
 })
 export class CultivestPortfolioNFT extends Contract {
-  // Core portfolio state
-  owner = GlobalState<Account>();
-  totalValueUSD = GlobalState<uint64>();
-  level = GlobalState<uint64>();
+  // Contract state
+  nextTokenId = GlobalState<uint64>();
+  totalSupply = GlobalState<uint64>();
+  contractVersion = GlobalState<uint64>();
+  maxSupply = GlobalState<uint64>();
+  positionNFTAppId = GlobalState<uint64>();
   
-  // Multi-chain holdings (in smallest units)
-  btcHoldings = GlobalState<uint64>(); // satoshis
-  algoHoldings = GlobalState<uint64>(); // microAlgos
-  usdcHoldings = GlobalState<uint64>(); // microUSDC
-  
-  // Performance tracking
-  totalInvested = GlobalState<uint64>();
-  unrealizedPnL = GlobalState<uint64>();
-  
-  // Metadata
-  createdAt = GlobalState<uint64>();
-  lastUpdate = GlobalState<uint64>();
-  
-  // Security
-  authorizedUpdater = GlobalState<Account>();
-  isLocked = GlobalState<boolean>();
+  // Access control
+  authorizedMinter = GlobalState<Account>();
+  contractName = GlobalState<string>();
 
   /**
-   * Initialize a new Portfolio NFT
+   * Initialize the Portfolio NFT contract
    */
   @abimethod({ onCreate: 'require' })
   createApplication(): void {
-    this.owner.value = Txn.sender;
-    this.createdAt.value = op.Global.latestTimestamp;
-    this.level.value = 1;
-    this.totalValueUSD.value = 0;
-    this.totalInvested.value = 0;
-    this.unrealizedPnL.value = 0;
-    this.btcHoldings.value = 0;
-    this.algoHoldings.value = 0;
-    this.usdcHoldings.value = 0;
-    this.isLocked.value = false;
-    this.lastUpdate.value = op.Global.latestTimestamp;
+    this.nextTokenId.value = 1; // Start token IDs at 1
+    this.totalSupply.value = 0;
+    this.contractVersion.value = 1;
+    this.maxSupply.value = 100000; // Maximum portfolio tokens
+    this.positionNFTAppId.value = 0; // Will be set later via setPositionNFTApp
+    this.authorizedMinter.value = Txn.sender;
+    this.contractName.value = 'CultivestPortfolioNFT';
     
-    // Set authorized updater (Cultivest backend)
-    this.authorizedUpdater.value = Txn.sender;
-    
-    // Log creation event
-    log('portfolio_created');
+    log('portfolio_contract_created');
   }
 
   /**
-   * Update portfolio holdings and values
+   * Mint new portfolio token for a user
+   * For MVP: Portfolio metadata is stored off-chain using the logged events
+   * The contract only tracks basic state and emits detailed events for indexing
+   * 
+   * @param owner - The Algorand address that will own this portfolio token
+   * @param level - Initial money tree level (1-5)
+   * @param totalInvestedUSD - Total amount invested in USD cents
+   */
+  @abimethod()
+  mintPortfolio(
+    owner: Account,
+    level: uint64,
+    totalInvestedUSD: uint64
+  ): uint64 {
+    // Security checks
+    assert(Txn.sender === this.authorizedMinter.value);
+    assert(this.totalSupply.value < this.maxSupply.value);
+    assert(level >= 1 && level <= 5);
+    assert(totalInvestedUSD >= 0);
+
+    const tokenId = this.nextTokenId.value;
+    
+    // Update contract state
+    this.nextTokenId.value = tokenId + 1;
+    this.totalSupply.value = this.totalSupply.value + 1;
+    
+    // Log detailed minting event for off-chain indexing
+    log(op.concat(Bytes('portfolio_minted:'), op.itob(tokenId)));
+    log(op.concat(Bytes('portfolio_owner:'), owner.bytes));
+    log(op.concat(Bytes('portfolio_level:'), op.itob(level)));
+    log(op.concat(Bytes('portfolio_invested:'), op.itob(totalInvestedUSD)));
+    log(op.concat(Bytes('portfolio_position_app:'), op.itob(this.positionNFTAppId.value)));
+    
+    return tokenId;
+  }
+
+  /**
+   * Add position token to a portfolio token
+   * For MVP: This is tracked off-chain, contract just logs the assignment
+   */
+  @abimethod()
+  addPositionToPortfolio(
+    portfolioTokenId: uint64,
+    positionTokenId: uint64,
+    owner: Account
+  ): void {
+    assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
+    assert(positionTokenId > 0);
+    
+    // Only owner or authorized minter can assign
+    const isOwner = Txn.sender === owner;
+    const isAuthorized = Txn.sender === this.authorizedMinter.value;
+    assert(isOwner || isAuthorized);
+    
+    // Log assignment event for off-chain tracking
+    log(op.concat(Bytes('position_added_to_portfolio:'), op.itob(portfolioTokenId)));
+    log(op.concat(Bytes('position_token_id:'), op.itob(positionTokenId)));
+    log(op.concat(Bytes('portfolio_owner:'), owner.bytes));
+  }
+
+  /**
+   * Remove position token from a portfolio token
+   */
+  @abimethod()
+  removePositionFromPortfolio(
+    portfolioTokenId: uint64,
+    positionTokenId: uint64,
+    owner: Account
+  ): void {
+    assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
+    assert(positionTokenId > 0);
+    
+    // Only owner or authorized minter can remove
+    const isOwner = Txn.sender === owner;
+    const isAuthorized = Txn.sender === this.authorizedMinter.value;
+    assert(isOwner || isAuthorized);
+    
+    // Log removal event for off-chain tracking
+    log(op.concat(Bytes('position_removed_from_portfolio:'), op.itob(portfolioTokenId)));
+    log(op.concat(Bytes('position_token_id:'), op.itob(positionTokenId)));
+    log(op.concat(Bytes('portfolio_owner:'), owner.bytes));
+  }
+
+  /**
+   * Update portfolio token values and performance
+   * For MVP: Only validates token exists via ID range, metadata tracked off-chain
    */
   @abimethod()
   updatePortfolio(
-    newBtcHoldings: uint64,
-    newAlgoHoldings: uint64,
-    newUsdcHoldings: uint64,
-    newTotalValueUSD: uint64
+    portfolioTokenId: uint64,
+    newLevel: uint64,
+    newTotalValueUSD: uint64,
+    newTotalInvestedUSD: uint64
   ): void {
-    // Security checks
-    assert(Txn.sender === this.authorizedUpdater.value);
-    assert(!this.isLocked.value);
-    
-    // Lock to prevent reentrancy
-    this.isLocked.value = true;
-    
-    // Update holdings
-    this.btcHoldings.value = newBtcHoldings;
-    this.algoHoldings.value = newAlgoHoldings;
-    this.usdcHoldings.value = newUsdcHoldings;
-    this.totalValueUSD.value = newTotalValueUSD;
-    
-    // Update P&L
-    this.unrealizedPnL.value = this.totalValueUSD.value - this.totalInvested.value;
-    
-    // Update money tree level
-    this.updateLevel();
-    
-    // Update timestamp
-    this.lastUpdate.value = op.Global.latestTimestamp;
-    
-    // Unlock
-    this.isLocked.value = false;
+    assert(Txn.sender === this.authorizedMinter.value);
+    assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
+    assert(newLevel >= 1 && newLevel <= 5);
+    assert(newTotalValueUSD >= 0);
+    assert(newTotalInvestedUSD >= 0);
     
     // Log update event for off-chain indexing
-    log(op.concat(Bytes('portfolio_update:'), op.itob(this.totalValueUSD.value)));
+    log(op.concat(Bytes('portfolio_updated:'), op.itob(portfolioTokenId)));
+    log(op.concat(Bytes('portfolio_new_level:'), op.itob(newLevel)));
+    log(op.concat(Bytes('portfolio_new_value:'), op.itob(newTotalValueUSD)));
+    log(op.concat(Bytes('portfolio_new_invested:'), op.itob(newTotalInvestedUSD)));
   }
 
   /**
-   * Record new investment
+   * Transfer portfolio token ownership
+   * For MVP: Off-chain system tracks ownership, this logs the transfer event
    */
   @abimethod()
-  recordInvestment(amountUSD: uint64): void {
-    assert(Txn.sender === this.authorizedUpdater.value);
+  transferPortfolio(
+    portfolioTokenId: uint64,
+    currentOwner: Account,
+    newOwner: Account
+  ): void {
+    // Basic validation
+    assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
     
-    this.totalInvested.value = this.totalInvested.value + amountUSD;
-    this.unrealizedPnL.value = this.totalValueUSD.value - this.totalInvested.value;
+    // For MVP, we allow authorized minter (backend) to facilitate transfers
+    // In production, we'd validate current ownership on-chain
+    const isOwner = Txn.sender === currentOwner;
+    const isAuthorized = Txn.sender === this.authorizedMinter.value;
+    assert(isOwner || isAuthorized);
     
-    log(op.concat(Bytes('investment:'), op.itob(amountUSD)));
+    // Log transfer event for off-chain ownership tracking
+    log(op.concat(Bytes('portfolio_transferred:'), op.itob(portfolioTokenId)));
+    log(op.concat(Bytes('portfolio_old_owner:'), currentOwner.bytes));
+    log(op.concat(Bytes('portfolio_new_owner:'), newOwner.bytes));
   }
 
   /**
-   * Transfer portfolio ownership
+   * Burn portfolio token (close portfolio)
+   * For MVP: Decrements supply and logs burn event for off-chain cleanup
    */
   @abimethod()
-  transferOwnership(newOwner: Account): void {
-    assert(Txn.sender === this.owner.value);
-    this.owner.value = newOwner;
-    log('ownership_transfer');
+  burnPortfolio(
+    portfolioTokenId: uint64,
+    owner: Account
+  ): void {
+    assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
+    
+    // Only owner or authorized minter can burn
+    const isOwner = Txn.sender === owner;
+    const isAuthorized = Txn.sender === this.authorizedMinter.value;
+    assert(isOwner || isAuthorized);
+    
+    // Update total supply
+    this.totalSupply.value = this.totalSupply.value - 1;
+    
+    // Log burn event for off-chain cleanup
+    log(op.concat(Bytes('portfolio_burned:'), op.itob(portfolioTokenId)));
+    log(op.concat(Bytes('portfolio_burned_owner:'), owner.bytes));
   }
 
   /**
-   * Get portfolio information (read-only)
+   * Set the Position NFT contract app ID (admin only)
+   */
+  @abimethod()
+  setPositionNFTApp(appId: uint64): void {
+    assert(Txn.sender === this.authorizedMinter.value);
+    assert(appId > 0);
+    
+    this.positionNFTAppId.value = appId;
+    log(op.concat(Bytes('position_nft_app_set:'), op.itob(appId)));
+  }
+
+  /**
+   * Get contract statistics (read-only)
    */
   @abimethod({ readonly: true })
-  getPortfolioInfo(): [uint64, uint64, uint64, uint64, uint64] {
+  getContractStats(): [uint64, uint64, uint64, uint64, uint64] {
     return [
-      this.level.value,
-      this.totalValueUSD.value,
-      this.btcHoldings.value,
-      this.algoHoldings.value,
-      this.usdcHoldings.value
+      this.nextTokenId.value - 1,  // Total tokens minted
+      this.totalSupply.value,      // Current supply (minted - burned)
+      this.maxSupply.value,        // Maximum supply
+      this.contractVersion.value,  // Contract version
+      this.positionNFTAppId.value  // Position NFT contract app ID
     ];
   }
 
   /**
-   * Update money tree level based on portfolio value
+   * Check if portfolio token ID is valid (read-only)
+   * For MVP: Only checks if token ID is in valid range
+   * Off-chain system tracks full portfolio metadata
    */
-  private updateLevel(): void {
-    const value = this.totalValueUSD.value;
-    
-    if (value >= 10000) { // $100.00
-      this.level.value = 5;
-    } else if (value >= 5000) { // $50.00
-      this.level.value = 4;
-    } else if (value >= 2500) { // $25.00
-      this.level.value = 3;
-    } else if (value >= 1000) { // $10.00
-      this.level.value = 2;
-    } else {
-      this.level.value = 1;
+  @abimethod({ readonly: true })
+  portfolioExists(portfolioTokenId: uint64): uint64 {
+    if (portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value) {
+      return 1; // Token ID is in valid range
     }
+    return 0;
+  }
+
+  /**
+   * Update authorized minter (admin only)
+   */
+  @abimethod()
+  setAuthorizedMinter(newMinter: Account): void {
+    assert(Txn.sender === this.authorizedMinter.value);
+    this.authorizedMinter.value = newMinter;
+    
+    log(op.concat(Bytes('minter_updated:'), newMinter.bytes));
   }
 }
