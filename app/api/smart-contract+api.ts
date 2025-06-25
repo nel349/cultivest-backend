@@ -2,22 +2,24 @@ import express from 'express';
 import { AlgorandClient } from '@algorandfoundation/algokit-utils';
 import { HelloWorldFactory } from '../../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/hello_world/HelloWorldClient';
 import { OnSchemaBreak, OnUpdate } from '@algorandfoundation/algokit-utils/types/app';
+import { getUserWallet, decryptPrivateKey } from '../../utils/wallet';
+import algosdk from 'algosdk';
 
 const router = express.Router();
 
 // Configure Algorand client
 const getAlgorandClient = () => {
-  // For testnet - you can make this configurable via environment variables
+  // For localnet - AlgoKit default configuration
   const algodConfig = {
-    server: 'https://testnet-api.algonode.cloud',
-    port: 443,
-    token: '',
+    server: 'http://localhost',
+    port: 4001,
+    token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   };
   
   const indexerConfig = {
-    server: 'https://testnet-idx.algonode.cloud',
-    port: 443,
-    token: '',
+    server: 'http://localhost',
+    port: 8980,
+    token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   };
 
   return AlgorandClient.fromConfig({
@@ -26,10 +28,50 @@ const getAlgorandClient = () => {
   });
 };
 
+// Get user's wallet and create signing account
+const getUserSigningAccount = async (userId: string) => {
+  try {
+    // Get user's wallet from database
+    const wallet = await getUserWallet(userId);
+    if (!wallet) {
+      throw new Error('User wallet not found');
+    }
+
+    // Get encrypted private key (try new field first, fallback to legacy)
+    const encryptedPrivateKey = wallet.encryptedAlgorandPrivateKey;
+    if (!encryptedPrivateKey) {
+      throw new Error('No encrypted Algorand private key found for user');
+    }
+
+    // Decrypt the private key
+    const mnemonic = decryptPrivateKey(encryptedPrivateKey);
+    
+    // Convert mnemonic to account
+    const account = algosdk.mnemonicToSecretKey(mnemonic);
+    
+    // Use the address from the account object (derived from private key)
+    // This ensures consistency and proper formatting
+    const address = account.addr;
+    
+    console.log(`🔐 Derived address from account: ${address}`);
+    console.log(`📊 Database address: ${wallet.algorandAddress}`);
+    console.log(`✅ Using derived address for transaction signing`);
+    
+    return {
+      account,
+      address, // Use derived address instead of database address
+      wallet
+    };
+  } catch (error) {
+    console.error('Error getting user signing account:', error);
+    throw error;
+  }
+};
+
 // Deploy and call HelloWorld contract
 router.post('/hello-world', async (req, res) => {
   try {
-    const { name, userAddress } = req.body;
+    const { name, userId } = req.body;
 
     if (!name) {
       return res.status(400).json({ 
@@ -38,19 +80,23 @@ router.post('/hello-world', async (req, res) => {
       });
     }
 
-    if (!userAddress) {
+    if (!userId) {
       return res.status(400).json({ 
         success: false, 
-        error: 'User address is required for deployment' 
+        error: 'User ID is required for wallet access' 
       });
     }
 
+    // Get user's signing account from encrypted wallet
+    const { account, address } = await getUserSigningAccount(userId);
+    
     const algorand = getAlgorandClient();
     
-    // For demo purposes, we'll use the provided address as the sender
-    // In production, you'd have proper wallet integration
+    // Set the signer using the user's account
+    algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+    
     const factory = new HelloWorldFactory({
-      defaultSender: userAddress,
+      defaultSender: address,
       algorand,
     });
 
@@ -72,8 +118,9 @@ router.post('/hello-world', async (req, res) => {
       data: {
         message: response.return,
         transactionId: response.transaction.txID,
-        appId: deployResult.result.appId,
-        appAddress: deployResult.result.appAddress,
+        appId: deployResult.result.appId.toString(), // Convert BigInt to string
+        appAddress: deployResult.result.appAddress.toString(), // Convert Address to string
+        userAddress: address.toString(), // Convert Address to string
       }
     });
 
@@ -116,19 +163,25 @@ router.get('/hello-world/:appId', async (req, res) => {
 router.post('/hello-world/:appId/call', async (req, res) => {
   try {
     const { appId } = req.params;
-    const { name, userAddress } = req.body;
+    const { name, userId } = req.body;
 
-    if (!name || !userAddress) {
+    if (!name || !userId) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Name and userAddress are required' 
+        error: 'Name and userId are required' 
       });
     }
 
+    // Get user's signing account from encrypted wallet
+    const { account, address } = await getUserSigningAccount(userId);
+
     const algorand = getAlgorandClient();
     
+    // Set the signer using the user's account
+    algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+    
     const factory = new HelloWorldFactory({
-      defaultSender: userAddress,
+      defaultSender: address,
       algorand,
     });
 
@@ -147,7 +200,8 @@ router.post('/hello-world/:appId/call', async (req, res) => {
       data: {
         message: response.return,
         transactionId: response.transaction.txID,
-        appId: appId,
+        appId: appId.toString(), // Ensure appId is string
+        userAddress: address.toString(), // Convert Address to string
       }
     });
 

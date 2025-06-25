@@ -40,6 +40,7 @@ import investmentPortfolioRoutes from './app/api/investment/portfolio+api';
 import pricesRoutes from './app/api/prices+api';
 import smartContractRoutes from './app/api/smart-contract+api';
 import testSmartContractRoutes from './app/api/test-smart-contract+api';
+import debugCreateTestUserRoutes from './app/api/debug/create-test-user+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -104,6 +105,7 @@ apiRouter.use('/debug/twilio-status', debugTwilioStatusRoutes);
 apiRouter.use('/debug/algorand-status', debugAlgorandStatusRoutes);
 apiRouter.use('/debug/bitcoin-status', debugBitcoinStatusRoutes);
 apiRouter.use('/debug/wallet-raw', debugWalletRawRoutes);
+apiRouter.use('/debug/create-test-user', debugCreateTestUserRoutes);
 apiRouter.use('/wallet/create', walletCreateRoutes);
 apiRouter.use('/moonpay/sign-url', moonpaySignUrlRoutes);
 
