@@ -54,8 +54,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n, // Bitcoin
         holdings: 10000n, // 10,000 sats
-        purchaseValueUsd: 100n, // $1.00 in cents
-        privateKeyRef: 'bitcoin-key-ref-12345'
+        purchaseValueUsd: 100n // $1.00 in cents
       }
     })
 
@@ -81,8 +80,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n, // Bitcoin
         holdings: 50000n, // 50,000 sats
-        purchaseValueUsd: 500n, // $5.00
-        privateKeyRef: 'btc-key-123'
+        purchaseValueUsd: 500n // $5.00
       }
     })
 
@@ -92,8 +90,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 2n, // Algorand
         holdings: 10000000n, // 10 ALGO in microALGO
-        purchaseValueUsd: 1000n, // $10.00
-        privateKeyRef: 'algo-key-456'
+        purchaseValueUsd: 1000n // $10.00
       }
     })
 
@@ -103,8 +100,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 3n, // USDC
         holdings: 25000000n, // $25 in microUSDC
-        purchaseValueUsd: 2500n, // $25.00
-        privateKeyRef: 'usdc-key-789'
+        purchaseValueUsd: 2500n // $25.00
       }
     })
 
@@ -137,15 +133,14 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'key-123'
+        purchaseValueUsd: 100n
       }
     })
 
     const tokenId = mintResult.return!
 
     // Update the position with new holdings and value
-    await client.send.updatePosition({
+    const updateResult = await client.send.updatePosition({
       args: {
         positionTokenId: tokenId,
         newHoldings: 15000n, // Increased to 15,000 sats
@@ -153,8 +148,35 @@ describe('CultivestPositionNFT E2E Tests', () => {
       }
     })
 
-    // No direct way to verify the update in this test framework,
-    // but the transaction should succeed without throwing
+    // Verify the update by checking the transaction logs
+    expect(updateResult.confirmation.logs).toBeDefined()
+    expect(updateResult.confirmation.logs!.length).toBeGreaterThan(0)
+
+    const logs = updateResult.confirmation.logs!.map((log: Uint8Array) => Buffer.from(log))
+    
+    // Find and verify position_updated log
+    const updatedLog = logs.find(log => log.toString().startsWith('position_updated:'))
+    expect(updatedLog).toBeDefined()
+    const updatedTokenIdBytes = updatedLog!.slice('position_updated:'.length)
+    const loggedTokenId = updatedTokenIdBytes.readBigUInt64BE(0)
+    expect(loggedTokenId).toBe(tokenId)
+    
+    // Find and verify position_new_holdings log
+    const newHoldingsLog = logs.find(log => log.toString().startsWith('position_new_holdings:'))
+    expect(newHoldingsLog).toBeDefined()
+    const newHoldingsBytes = newHoldingsLog!.slice('position_new_holdings:'.length)
+    const loggedNewHoldings = newHoldingsBytes.readBigUInt64BE(0)
+    expect(loggedNewHoldings).toBe(15000n)
+    
+    // Find and verify position_new_value log
+    const newValueLog = logs.find(log => log.toString().startsWith('position_new_value:'))
+    expect(newValueLog).toBeDefined()
+    const newValueBytes = newValueLog!.slice('position_new_value:'.length)
+    const loggedNewValue = newValueBytes.readBigUInt64BE(0)
+    expect(loggedNewValue).toBe(150n)
+    console.log('new value: ', loggedNewValue)
+    console.log('new holdings: ', loggedNewHoldings)
+    console.log('token id: ', loggedTokenId)
   })
 
   test('transfers position ownership successfully', async () => {
@@ -168,24 +190,51 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'transfer-key-123'
+        purchaseValueUsd: 100n
       }
     })
 
     const tokenId = mintResult.return!
 
     // Transfer the position
-    await client.send.transferPosition({
+    const transferResult = await client.send.transferPosition({
       args: {
         positionTokenId: tokenId,
         currentOwner: testAccount.addr.toString(),
-        newOwner: recipient.addr.toString(),
-        privateKeyRef: 'transfer-key-123'
+        newOwner: recipient.addr.toString()
       }
     })
 
-    // Transaction should succeed without throwing
+    // Verify the transfer by checking the transaction logs
+    expect(transferResult.confirmation.logs).toBeDefined()
+    expect(transferResult.confirmation.logs!.length).toBeGreaterThan(0)
+
+    const logs = transferResult.confirmation.logs!.map((log: Uint8Array) => Buffer.from(log))
+
+    // Find and verify position_transferred log
+    const transferredLog = logs.find(log => log.toString().startsWith('position_transferred:'))
+    expect(transferredLog).toBeDefined()
+    const transferredTokenIdBytes = transferredLog!.slice('position_transferred:'.length)
+    const loggedTransferredTokenId = transferredTokenIdBytes.readBigUInt64BE(0)
+    expect(loggedTransferredTokenId).toBe(tokenId)
+
+    // Find and verify position_old_owner log
+    const oldOwnerLog = logs.find(log => log.toString().startsWith('position_old_owner:'))
+    expect(oldOwnerLog).toBeDefined()
+    const oldOwnerBytes = oldOwnerLog!.slice('position_old_owner:'.length)
+    const loggedOldOwner = algosdk.encodeAddress(new Uint8Array(oldOwnerBytes))
+    expect(loggedOldOwner).toBe(testAccount.addr.toString())
+
+    // Find and verify position_new_owner log
+    const newOwnerLog = logs.find(log => log.toString().startsWith('position_new_owner:'))
+    expect(newOwnerLog).toBeDefined()
+    const newOwnerBytes = newOwnerLog!.slice('position_new_owner:'.length)
+    const loggedNewOwner = algosdk.encodeAddress(new Uint8Array(newOwnerBytes))
+    expect(loggedNewOwner).toBe(recipient.addr.toString())
+
+    console.log('transferredTokenId: ', loggedTransferredTokenId)
+    console.log('oldOwner: ', loggedOldOwner)
+    console.log('newOwner: ', loggedNewOwner)
   })
 
   test('assigns position to portfolio successfully', async () => {
@@ -198,8 +247,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'portfolio-key-123'
+        purchaseValueUsd: 100n
       }
     })
 
@@ -227,8 +275,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'burn-key-1'
+        purchaseValueUsd: 100n
       }
     })
 
@@ -237,8 +284,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 2n,
         holdings: 5000000n,
-        purchaseValueUsd: 500n,
-        privateKeyRef: 'burn-key-2'
+        purchaseValueUsd: 500n
       }
     })
 
@@ -250,8 +296,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
     await client.send.burnPosition({
       args: {
         positionTokenId: mint1.return!,
-        owner: testAccount.addr.toString(),
-        privateKeyRef: 'burn-key-1'
+        owner: testAccount.addr.toString()
       }
     })
 
@@ -287,8 +332,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'unauthorized-key'
+        purchaseValueUsd: 100n
       }
     })).rejects.toThrow()
 
@@ -299,8 +343,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: newMinter.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'new-minter-key'
+        purchaseValueUsd: 100n
       }
     })
 
@@ -317,8 +360,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 0n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'invalid-key'
+        purchaseValueUsd: 100n
       }
     })).rejects.toThrow()
 
@@ -328,8 +370,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 4n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'invalid-key'
+        purchaseValueUsd: 100n
       }
     })).rejects.toThrow()
   })
@@ -344,8 +385,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 0n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'zero-holdings-key'
+        purchaseValueUsd: 100n
       }
     })).rejects.toThrow()
 
@@ -355,8 +395,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 0n,
-        privateKeyRef: 'zero-value-key'
+        purchaseValueUsd: 0n
       }
     })).rejects.toThrow()
   })
@@ -373,8 +412,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
           owner: testAccount.addr.toString(),
           assetType: 1n,
           holdings: 10000n,
-          purchaseValueUsd: 100n,
-          privateKeyRef: 'group-key-1'
+          purchaseValueUsd: 100n
         }
       })
       .mintPosition({
@@ -382,8 +420,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
           owner: testAccount.addr.toString(),
           assetType: 2n,
           holdings: 5000000n,
-          purchaseValueUsd: 500n,
-          privateKeyRef: 'group-key-2'
+          purchaseValueUsd: 500n
         }
       })
       .send()
@@ -409,8 +446,7 @@ describe('CultivestPositionNFT E2E Tests', () => {
         owner: testAccount.addr.toString(),
         assetType: 1n,
         holdings: 10000n,
-        purchaseValueUsd: 100n,
-        privateKeyRef: 'log-test-key'
+        purchaseValueUsd: 100n
       }
     })
 
@@ -448,12 +484,6 @@ describe('CultivestPositionNFT E2E Tests', () => {
     const valueBytes = valueLog!.slice('position_purchase_value:'.length)
     const loggedValue = valueBytes.readBigUInt64BE(0)
     expect(loggedValue).toBe(100n)
-    
-    // Find and verify position_key_ref log (this one is a string)
-    const keyRefLog = logs.find(log => log.toString().startsWith('position_key_ref:'))
-    expect(keyRefLog).toBeDefined()
-    const keyRefString = keyRefLog!.slice('position_key_ref:'.length).toString()
-    expect(keyRefString).toBe('log-test-key')
     
     // Find and verify position_owner log
     const ownerLog = logs.find(log => log.toString().startsWith('position_owner:'))

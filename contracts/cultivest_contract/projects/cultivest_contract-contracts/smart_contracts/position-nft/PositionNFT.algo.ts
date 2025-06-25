@@ -50,14 +50,18 @@ export class CultivestPositionNFT extends Contract {
    * 
    * For MVP: Token metadata is stored off-chain using the logged events
    * The contract only tracks basic state and emits detailed events for indexing
+   * 
+   * @param owner - The Algorand address that will own this position token
+   * @param assetType - Asset type: 1=Bitcoin, 2=Algorand, 3=USDC
+   * @param holdings - Amount held in smallest units (sats, microALGO, microUSDC)
+   * @param purchaseValueUSD - Purchase value in USD cents (e.g., 100 = $1.00)
    */
   @abimethod()
   mintPosition(
     owner: Account,
     assetType: uint64,
     holdings: uint64,
-    purchaseValueUSD: uint64,
-    privateKeyRef: string
+    purchaseValueUSD: uint64
   ): uint64 {
     // Security checks
     assert(Txn.sender === this.authorizedMinter.value);
@@ -73,15 +77,11 @@ export class CultivestPositionNFT extends Contract {
     this.totalSupply.value = this.totalSupply.value + 1;
     
     // Log detailed minting event for off-chain indexing
-    // This allows the backend to reconstruct full token metadata from blockchain events
     log(op.concat(Bytes('position_minted:'), op.itob(tokenId)));
     log(op.concat(Bytes('position_asset_type:'), op.itob(assetType)));
     log(op.concat(Bytes('position_holdings:'), op.itob(holdings)));
     log(op.concat(Bytes('position_purchase_value:'), op.itob(purchaseValueUSD)));
     log(op.concat(Bytes('position_owner:'), owner.bytes));
-    
-    // Log private key reference separately for security
-    log(op.concat(Bytes('position_key_ref:'), Bytes(privateKeyRef)));
     
     return tokenId;
   }
@@ -110,13 +110,16 @@ export class CultivestPositionNFT extends Contract {
   /**
    * Transfer position token ownership (triggers key re-encryption)
    * For MVP: Off-chain system tracks ownership, this logs the transfer event
+   * 
+   * @param positionTokenId - The token ID to transfer
+   * @param currentOwner - Current owner's Algorand address
+   * @param newOwner - New owner's Algorand address  
    */
   @abimethod()
   transferPosition(
     positionTokenId: uint64,
     currentOwner: Account,
-    newOwner: Account,
-    privateKeyRef: string
+    newOwner: Account
   ): void {
     // Basic validation
     assert(positionTokenId > 0 && positionTokenId < this.nextTokenId.value);
@@ -127,13 +130,10 @@ export class CultivestPositionNFT extends Contract {
     const isAuthorized = Txn.sender === this.authorizedMinter.value;
     assert(isOwner || isAuthorized);
     
-    // Log transfer event for off-chain key re-encryption and ownership tracking
+    // Log transfer event for off-chain ownership tracking
     log(op.concat(Bytes('position_transferred:'), op.itob(positionTokenId)));
     log(op.concat(Bytes('position_old_owner:'), currentOwner.bytes));
     log(op.concat(Bytes('position_new_owner:'), newOwner.bytes));
-    
-    // Log private key reference for re-encryption
-    log(op.concat(Bytes('position_key_reencrypt:'), Bytes(privateKeyRef)));
   }
 
   /**
@@ -163,12 +163,14 @@ export class CultivestPositionNFT extends Contract {
   /**
    * Burn position token (sell/withdraw all holdings)
    * For MVP: Decrements supply and logs burn event for off-chain cleanup
+   * 
+   * @param positionTokenId - The token ID to burn
+   * @param owner - Owner's Algorand address
    */
   @abimethod()
   burnPosition(
     positionTokenId: uint64,
-    owner: Account,
-    privateKeyRef: string
+    owner: Account
   ): void {
     assert(positionTokenId > 0 && positionTokenId < this.nextTokenId.value);
     
@@ -180,12 +182,9 @@ export class CultivestPositionNFT extends Contract {
     // Update total supply
     this.totalSupply.value = this.totalSupply.value - 1;
     
-    // Log burn event for off-chain cleanup (key deletion, database cleanup)
+    // Log burn event for off-chain cleanup
     log(op.concat(Bytes('position_burned:'), op.itob(positionTokenId)));
     log(op.concat(Bytes('position_burned_owner:'), owner.bytes));
-    
-    // Log private key reference for secure cleanup
-    log(op.concat(Bytes('position_key_cleanup:'), Bytes(privateKeyRef)));
   }
 
   /**
