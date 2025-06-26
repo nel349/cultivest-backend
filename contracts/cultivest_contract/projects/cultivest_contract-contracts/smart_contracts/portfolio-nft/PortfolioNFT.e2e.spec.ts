@@ -152,6 +152,8 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
+    await fundContract(client, testAccount)
+
     // Mint a portfolio
     const portfolioResult = await client.send.mintPortfolio({
       args: {
@@ -182,6 +184,17 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
 
     // Should complete without errors
     expect(portfolioTokenId).toBe(1n)
+
+    // Check the box storage for the position count for the portfolio
+    const positionCount = await client.send.getPortfolioPositionCount({ args: { portfolioTokenId } })
+    expect(positionCount.return).toBe(2n)
+
+    // check if the positions exist in the box storage
+    const position1Exists = await client.send.getPositionPortfolio({ args: { positionTokenId: 101n } })
+    expect(position1Exists.return).toBe(portfolioTokenId)
+
+    const position2Exists = await client.send.getPositionPortfolio({ args: { positionTokenId: 102n } })
+    expect(position2Exists.return).toBe(portfolioTokenId)
   })
 
   test('removes position from portfolio successfully', async () => {
