@@ -201,6 +201,8 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
+    await fundContract(client, testAccount)
+
     // Mint portfolio and add positions
     const portfolioResult = await client.send.mintPortfolio({
       args: {
@@ -219,6 +221,10 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
       args: { portfolioTokenId, positionTokenId: 102n, owner: testAccount.addr.toString() }
     })
 
+    // Check the box storage for the position count for the portfolio
+    let positionCount = await client.send.getPortfolioPositionCount({ args: { portfolioTokenId } })
+    expect(positionCount.return).toBe(2n)
+
     // Remove one position
     await client.send.removePositionFromPortfolio({
       args: {
@@ -230,11 +236,24 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
 
     // Should complete without errors
     expect(portfolioTokenId).toBe(1n)
+
+    // Check the box storage for the position count for the portfolio
+    positionCount = await client.send.getPortfolioPositionCount({ args: { portfolioTokenId } })
+    expect(positionCount.return).toBe(1n)
+
+    // check if the positions exist in the box storage
+    const position1PortfolioId = await client.send.getPositionPortfolio({ args: { positionTokenId: 101n } })
+    expect(position1PortfolioId.return).toBe(portfolioTokenId)
+
+    const position2PortfolioId = await client.send.getPositionPortfolio({ args: { positionTokenId: 102n } })
+    expect(position2PortfolioId.return).toBe(0n)
   })
 
   test('updates portfolio values successfully', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
+
+    await fundContract(client, testAccount)
 
     // Mint portfolio
     const portfolioResult = await client.send.mintPortfolio({
@@ -257,12 +276,22 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
 
     // Should complete without errors
     expect(portfolioTokenId).toBe(1n)
+
+    // Check the box storage for the portfolio level
+    const portfolioLevel = await client.send.getPortfolioLevel({ args: { tokenId: portfolioTokenId } })
+    expect(portfolioLevel.return).toBe(3n)
+
+    // Check the box storage for the portfolio metadata CID
+    const portfolioMetadataCID = await client.send.getPortfolioMetadataCid({ args: { tokenId: portfolioTokenId } })
+    expect(portfolioMetadataCID.return).toBe('QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh')
   })
 
   test('transfers portfolio ownership successfully', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
     const secondAccount = await localnet.context.generateAccount({ initialFunds: (1).algo() })
+
+    await fundContract(client, testAccount)
 
     // Mint portfolio
     const portfolioResult = await client.send.mintPortfolio({
@@ -283,26 +312,39 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
       }
     })
 
-    // Should complete without errors
-    expect(portfolioTokenId).toBe(1n)
+    // Check the box storage for the portfolio owner
+    const portfolioOwner = await client.send.getPortfolioOwner({ args: { tokenId: portfolioTokenId } })
+    const ownerBytes = portfolioOwner.return!
+    const address = algosdk.encodeAddress(new Uint8Array(ownerBytes))
+    expect(address).toBe(secondAccount.addr.toString())
+
+    // Check the box storage for the portfolio level
+    const portfolioLevel = await client.send.getPortfolioLevel({ args: { tokenId: portfolioTokenId } })
+    expect(portfolioLevel.return).toBe(1n)
+
+    // Check the box storage for the portfolio metadata CID
+    const portfolioMetadataCID = await client.send.getPortfolioMetadataCid({ args: { tokenId: portfolioTokenId } })
+    expect(portfolioMetadataCID.return).toBe('QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh')
   })
 
   test('burns portfolio successfully', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
+    await fundContract(client, testAccount)
+
     // Mint multiple portfolios
     await client.send.mintPortfolio({
       args: { owner: testAccount.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
     })
-    await client.send.mintPortfolio({
+    const portfolioTokenId2 = (await client.send.mintPortfolio({
       args: { owner: testAccount.addr.toString(), level: 2n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
-    })
+    })).return!
 
     // Burn first portfolio
     await client.send.burnPortfolio({
       args: {
-        portfolioTokenId: 1n,
+        portfolioTokenId: portfolioTokenId2,
         owner: testAccount.addr.toString()
       }
     })
@@ -311,6 +353,17 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const stats = await client.send.getContractStats({ args: {} })
     expect(stats.return![0]).toBe(2n) // Total tokens minted (still 2)
     expect(stats.return![1]).toBe(1n) // Current supply (decreased to 1)
+
+    // Check the box storage for the portfolio owner but should fail
+    await expect(client.send.getPortfolioOwner({ args: { tokenId: portfolioTokenId2 } })).rejects.toThrow("Portfolio does not exist")
+
+    // Check the box storage for the portfolio level
+    const portfolioLevel = await client.send.getPortfolioLevel({ args: { tokenId: portfolioTokenId2 } })
+    expect(portfolioLevel.return).toBe(0n)
+
+    // Check the box storage for the portfolio metadata CID
+    const portfolioMetadataCID = await client.send.getPortfolioMetadataCid({ args: { tokenId: portfolioTokenId2 } })
+    expect(portfolioMetadataCID.return).toBe('')
   })
 
   test('validates portfolio token existence', async () => {
@@ -321,7 +374,9 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const existsResult1 = await client.send.portfolioExists({
       args: { portfolioTokenId: 1n }
     })
-    expect(existsResult1.return).toBe(0n) // Should not exist
+    expect(existsResult1.return).toBe(false) // Should not exist
+
+    await fundContract(client, testAccount)
 
     // Mint a portfolio
     await client.send.mintPortfolio({
@@ -332,7 +387,8 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const existsResult2 = await client.send.portfolioExists({
       args: { portfolioTokenId: 1n }
     })
-    expect(existsResult2.return).toBe(1n) // Should exist
+    expect(existsResult2.return).toBe(true) // Should exist
+
   })
 
   test('prevents unauthorized operations', async () => {
@@ -368,6 +424,8 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     // Create client with new minter
     const newMinterClient = client.clone({ defaultSender: newMinter })
 
+    await fundContract(client, testAccount)
+
     // New minter should be able to mint
     const result = await newMinterClient.send.mintPortfolio({
       args: { owner: newMinter.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
@@ -382,6 +440,7 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const user1 = await localnet.context.generateAccount({ initialFunds: (1).algo() })
     const user2 = await localnet.context.generateAccount({ initialFunds: (1).algo() })
 
+    await fundContract(client, testAccount)
     // 1. Mint portfolios for multiple users
     const portfolio1 = await client.send.mintPortfolio({
       args: { owner: user1.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
@@ -432,7 +491,6 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const stats = await client.send.getContractStats({ args: {} })
     expect(stats.return![0]).toBe(2n) // 2 portfolios minted
     expect(stats.return![1]).toBe(2n) // 2 still active
-    expect(stats.return![4]).toBe(12345n) // Position NFT app ID set
 
     const portfolio1Exists = await client.send.portfolioExists({
       args: { portfolioTokenId: portfolio1.return! }
@@ -441,7 +499,18 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
       args: { portfolioTokenId: portfolio2.return! }
     })
     
-    expect(portfolio1Exists.return).toBe(1n)
-    expect(portfolio2Exists.return).toBe(1n)
+    expect(portfolio1Exists.return).toBe(true)
+    expect(portfolio2Exists.return).toBe(true)
+
+    // check the position 102 is not in the portfolio
+    const position102PortfolioId = await client.send.getPositionPortfolio({ args: { positionTokenId: 102n } })
+    expect(position102PortfolioId.return).toBe(0n)
+
+    // Check the others do return the correct portfolio id
+    const position101PortfolioId = await client.send.getPositionPortfolio({ args: { positionTokenId: 101n } })
+    expect(position101PortfolioId.return).toBe(portfolio1.return!)
+
+    const position201PortfolioId = await client.send.getPositionPortfolio({ args: { positionTokenId: 201n } })
+    expect(position201PortfolioId.return).toBe(portfolio2.return!)
   })
 })

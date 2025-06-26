@@ -184,7 +184,7 @@ export class CultivestPortfolioNFT extends Contract {
   }
 
   /**
-   * Get which portfolio a position belongs to
+   * Get which portfolio id a position belongs to. Returns 0 if the position is not assigned to any portfolio
    */
   @abimethod({ readonly: true })
   getPositionPortfolio(positionTokenId: uint64): uint64 {
@@ -286,6 +286,9 @@ export class CultivestPortfolioNFT extends Contract {
     this.portfolioOwner(portfolioTokenId).delete();
     this.portfolioPositionCount(portfolioTokenId).delete();
     this.positionToPortfolio(portfolioTokenId).delete();
+    this.portfolioLevel(portfolioTokenId).delete();
+    this.portfolioCreated(portfolioTokenId).delete();
+    this.portfolioMetadataCID(portfolioTokenId).delete();
     
     // Log burn event for off-chain cleanup
     log(op.concat(Bytes('portfolio_burned:'), op.itob(portfolioTokenId)));
