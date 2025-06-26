@@ -12,24 +12,26 @@ export async function deploy() {
     defaultSender: deployer.addr,
   })
 
-  // Deploy using the deploy method with createParams
-  const { appClient, result } = await factory.deploy({ 
-    onUpdate: 'append', 
-    onSchemaBreak: 'append',
+  // Deploy with unique name and initialization
+  const { appClient } = await factory.deploy({
+    onUpdate: 'replace',
+    onSchemaBreak: 'replace',
     createParams: {
       method: 'createApplication',
       args: []
-    }
+    },
+    // Force creation of new app by using a unique name each time
+    appName: `CultivestPortfolioNFT-${Date.now()}`
   })
 
-  // If app was just created fund the app account
-  if (['create', 'replace'].includes(result.operationPerformed)) {
-    await algorand.send.payment({
-      amount: (1).algo(),
-      sender: deployer.addr,
-      receiver: appClient.appAddress,
-    })
-  }
+  // Fund the app account
+  await algorand.send.payment({
+    amount: (1).algo(),
+    sender: deployer.addr,
+    receiver: appClient.appAddress,
+  })
+
+  console.log('✅ Contract deployed and initialized successfully');
 
   console.log(`✅ Portfolio NFT contract deployed with App ID: ${appClient.appClient.appId}`)
   console.log(`📍 App Address: ${appClient.appAddress}`)

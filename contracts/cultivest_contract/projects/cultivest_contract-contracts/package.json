@@ -7,6 +7,9 @@
     "build": "algokit compile ts smart_contracts --output-source-map --out-dir artifacts && algokit generate client smart_contracts/artifacts --output {app_spec_dir}/{contract_name}Client.ts",
     "deploy": "ts-node-dev --transpile-only --watch .env -r dotenv/config smart_contracts/index.ts",
     "deploy:ci": "ts-node --transpile-only -r dotenv/config smart_contracts/index.ts",
+    "deploy:position": "npm run deploy:ci position-nft",
+    "deploy:portfolio": "npm run deploy:ci portfolio-nft", 
+    "deploy:all": "npm run deploy:ci",
     "lint": "eslint smart_contracts",
     "lint:fix": "eslint smart_contracts --fix",
     "audit": "better-npm-audit audit",
@@ -17,6 +20,8 @@
     "test:nft-position:watch": "vitest watch smart_contracts/position-nft/PositionNFT.e2e.spec.ts",
     "test:nft-portfolio": "vitest run --coverage smart_contracts/portfolio-nft/PortfolioNFT.e2e.spec.ts",
     "test:nft-portfolio:watch": "vitest watch smart_contracts/portfolio-nft/PortfolioNFT.e2e.spec.ts",
+    "test:integration": "vitest run --coverage smart_contracts/integration/position-portfolio-integration.e2e.spec.ts",
+    "test:integration:watch": "vitest watch smart_contracts/integration/position-portfolio-integration.e2e.spec.ts",
     "check-types": "tsc --noEmit"
   },
   "engines": {

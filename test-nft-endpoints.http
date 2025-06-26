@@ -1,0 +1,146 @@
+### NFT API Endpoints Testing (Environment Variable App IDs)
+### Base URL: http://localhost:3000/api/v1/nft
+
+# =======================
+# POSITION NFT ENDPOINTS
+# =======================
+
+### Mint Position Token (for new investment)
+POST http://localhost:3000/api/v1/nft/position/mint
+Content-Type: application/json
+
+{
+  "userId": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
+  "owner": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
+  "assetType": 1,
+  "holdings": "100000000",
+  "purchaseValueUsd": "5000000"
+}
+
+### Update Position Token (when value changes)
+PUT http://localhost:3000/api/v1/nft/position/update
+Content-Type: application/json
+
+{
+  "userId": "test-user-123",
+  "positionTokenId": "1",
+  "newHoldings": "150000000",
+  "newCurrentValueUsd": "7500000"
+}
+
+### Get Position NFT Contract Stats
+GET http://localhost:3000/api/v1/nft/position/stats?userId=test-user-123
+
+# =======================
+# PORTFOLIO NFT ENDPOINTS
+# =======================
+
+### Mint Portfolio Token (for new user)
+POST http://localhost:3000/api/v1/nft/portfolio/mint
+Content-Type: application/json
+
+{
+  "userId": "test-user-123",
+  "owner": "ALGORAND_ADDRESS_HERE",
+  "level": 1,
+  "metadataCid": "QmExampleIPFSHashForPortfolioMetadata123"
+}
+
+### Add Position to Portfolio
+POST http://localhost:3000/api/v1/nft/portfolio/add-position
+Content-Type: application/json
+
+{
+  "userId": "test-user-123",
+  "portfolioTokenId": "1",
+  "positionTokenId": "1",
+  "owner": "ALGORAND_ADDRESS_HERE"
+}
+
+### Get Portfolio NFT Contract Stats
+GET http://localhost:3000/api/v1/nft/portfolio/stats?userId=test-user-123
+
+### Get Portfolio Position Count
+GET http://localhost:3000/api/v1/nft/portfolio/position-count/1?userId=test-user-123
+
+### Get Which Portfolio a Position Belongs To
+GET http://localhost:3000/api/v1/nft/portfolio/position-portfolio/1?userId=test-user-123
+
+# =======================
+# DEBUG/ADMIN ENDPOINTS
+# =======================
+
+### Fund Portfolio NFT Contract (for box storage)
+# Uses deployer account with ALGO, not user account  
+# Run this before minting portfolio tokens if contract needs funding
+POST http://localhost:3000/api/v1/nft/debug/fund-portfolio-contract
+Content-Type: application/json
+
+{
+  "amount": 100000
+}
+
+### Fund Portfolio NFT Contract (default amount)
+# Uses default 0.1 ALGO funding amount
+POST http://localhost:3000/api/v1/nft/debug/fund-portfolio-contract
+Content-Type: application/json
+
+{}
+
+# =======================
+# COMBINED OPERATIONS
+# =======================
+
+### Create Investment with NFTs (Complete Flow)
+# This mints a position token and adds it to a portfolio
+POST http://localhost:3000/api/v1/nft/create-investment
+Content-Type: application/json
+
+{
+  "userId": "test-user-123",
+  "portfolioTokenId": "1",
+  "owner": "ALGORAND_ADDRESS_HERE",
+  "assetType": 1,
+  "holdings": "200000000",
+  "purchaseValueUsd": "10000000"
+}
+
+# =======================
+# ENVIRONMENT SETUP
+# =======================
+
+### Required Environment Variables:
+# Add to your .env file:
+# POSITION_NFT_APP_ID=1001
+# PORTFOLIO_NFT_APP_ID=2001
+
+# =======================
+# TEST DATA REFERENCE
+# =======================
+
+### Asset Types:
+# 1 = Bitcoin
+# 2 = Algorand  
+# 3 = USDC
+
+### Portfolio Levels:
+# 1-5 (money tree growth levels)
+
+### Example Test User Setup:
+# 1. First create a test user via: POST /api/v1/debug/create-test-user
+# 2. Get their Algorand address from wallet
+# 3. Replace "ALGORAND_ADDRESS_HERE" with actual address
+# 4. Replace "test-user-123" with actual user ID
+# 5. Fund the Portfolio contract: POST /api/v1/nft/debug/fund-portfolio-contract
+
+### Example Values:
+# holdings: "100000000" = 1 BTC (8 decimal places)
+# purchaseValueUsd: "5000000" = $50,000.00 (2 decimal places as cents)
+# metadataCid: IPFS CID pointing to JSON metadata with portfolio details
+
+### Prerequisites:
+# - Set POSITION_NFT_APP_ID and PORTFOLIO_NFT_APP_ID in .env
+# - Position NFT contract deployed
+# - Portfolio NFT contract deployed  
+# - Test user created with wallet
+# - Algorand localnet running
