@@ -1,4 +1,4 @@
-import { Contract, GlobalState, uint64, log, op, assert, Txn, Account, Bytes, contract, BoxMap } from '@algorandfoundation/algorand-typescript';
+import { Contract, GlobalState, uint64, log, op, assert, Txn, Account, Bytes, contract, BoxMap, bytes } from '@algorandfoundation/algorand-typescript';
 import { abimethod } from '@algorandfoundation/algorand-typescript';
 
 /**
@@ -37,6 +37,19 @@ export class CultivestPortfolioNFT extends Contract {
   // Key: portfolioTokenId (uint64) -> Value: positionCount (uint64)
   portfolioPositionCount = BoxMap<uint64, uint64>({ keyPrefix: 'portcount' });
 
+  // Box storage for portfolio owner
+  // Key: portfolioTokenId (uint64) -> Value: owner (Account)
+  portfolioOwner = BoxMap<uint64, Account>({ keyPrefix: 'owner' });
+
+  // Essential data on-chain
+  portfolioLevel = BoxMap<uint64, uint64>({ keyPrefix: 'level' });
+
+  // Box storage for portfolio creation timestamp
+  portfolioCreated = BoxMap<uint64, uint64>({ keyPrefix: 'created' });
+
+  // Rich metadata on IPFS
+  portfolioMetadataCID = BoxMap<uint64, string>({ keyPrefix: 'ipfs' });
+
   /**
    * Initialize the Portfolio NFT contract
    */
@@ -64,13 +77,13 @@ export class CultivestPortfolioNFT extends Contract {
   mintPortfolio(
     owner: Account,
     level: uint64,
-    totalInvestedUSD: uint64
+    metadataCID: string
   ): uint64 {
     // Security checks
     assert(Txn.sender === this.authorizedMinter.value);
     assert(this.totalSupply.value < this.maxSupply.value);
     assert(level >= 1 && level <= 5);
-    assert(totalInvestedUSD >= 0);
+    assert(op.len(Bytes(metadataCID)) > 0);
 
     const tokenId = this.nextTokenId.value;
     
@@ -78,15 +91,18 @@ export class CultivestPortfolioNFT extends Contract {
     this.nextTokenId.value = tokenId + 1;
     this.totalSupply.value = this.totalSupply.value + 1;
     
-    // Initialize portfolio position count to 0
+    // Initialize portfolio position count to 0. This should alwasy be 0 when minting a new portfolio
     this.portfolioPositionCount(tokenId).value = 0;
-    
+    this.portfolioOwner(tokenId).value = owner;
+    this.portfolioCreated(tokenId).value = op.Global.latestTimestamp;
+    this.portfolioMetadataCID(tokenId).value = metadataCID;
+    this.portfolioLevel(tokenId).value = level;
+
     // Log detailed minting event for off-chain indexing
     log(op.concat(Bytes('portfolio_minted:'), op.itob(tokenId)));
     log(op.concat(Bytes('portfolio_owner:'), owner.bytes));
     log(op.concat(Bytes('portfolio_level:'), op.itob(level)));
-    log(op.concat(Bytes('portfolio_invested:'), op.itob(totalInvestedUSD)));
-    log(op.concat(Bytes('portfolio_position_app:'), op.itob(this.positionNFTAppId.value)));
+    log(op.concat(Bytes('portfolio_metadata_cid:'), Bytes(metadataCID)));
     
     return tokenId;
   }
@@ -197,31 +213,34 @@ export class CultivestPortfolioNFT extends Contract {
 
   /**
    * Update portfolio token values and performance
-   * For MVP: Only validates token exists via ID range, metadata tracked off-chain
    */
   @abimethod()
   updatePortfolio(
     portfolioTokenId: uint64,
     newLevel: uint64,
-    newTotalValueUSD: uint64,
-    newTotalInvestedUSD: uint64
+    newMetadataCID: string
   ): void {
     assert(Txn.sender === this.authorizedMinter.value);
     assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
     assert(newLevel >= 1 && newLevel <= 5);
-    assert(newTotalValueUSD >= 0);
-    assert(newTotalInvestedUSD >= 0);
+
+    if (op.len(Bytes(newMetadataCID)) > 0) { // If metadata is provided, update it
+      this.portfolioMetadataCID(portfolioTokenId).value = newMetadataCID;
+    }
     
+
+    if (newLevel > 0) { // If level is provided, update it
+      this.portfolioLevel(portfolioTokenId).value = newLevel;
+    }
+
     // Log update event for off-chain indexing
     log(op.concat(Bytes('portfolio_updated:'), op.itob(portfolioTokenId)));
     log(op.concat(Bytes('portfolio_new_level:'), op.itob(newLevel)));
-    log(op.concat(Bytes('portfolio_new_value:'), op.itob(newTotalValueUSD)));
-    log(op.concat(Bytes('portfolio_new_invested:'), op.itob(newTotalInvestedUSD)));
+    log(op.concat(Bytes('portfolio_new_metadata:'), Bytes(newMetadataCID)));
   }
 
   /**
    * Transfer portfolio token ownership
-   * For MVP: Off-chain system tracks ownership, this logs the transfer event
    */
   @abimethod()
   transferPortfolio(
@@ -231,12 +250,13 @@ export class CultivestPortfolioNFT extends Contract {
   ): void {
     // Basic validation
     assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
-    
-    // For MVP, we allow authorized minter (backend) to facilitate transfers
-    // In production, we'd validate current ownership on-chain
     const isOwner = Txn.sender === currentOwner;
     const isAuthorized = Txn.sender === this.authorizedMinter.value;
     assert(isOwner || isAuthorized);
+
+    // Update ownership on-chain
+    this.portfolioOwner(portfolioTokenId).value = newOwner;
+    this.portfolioCreated(portfolioTokenId).value = op.Global.latestTimestamp;
     
     // Log transfer event for off-chain ownership tracking
     log(op.concat(Bytes('portfolio_transferred:'), op.itob(portfolioTokenId)));
@@ -246,7 +266,6 @@ export class CultivestPortfolioNFT extends Contract {
 
   /**
    * Burn portfolio token (close portfolio)
-   * For MVP: Decrements supply and logs burn event for off-chain cleanup
    */
   @abimethod()
   burnPortfolio(
@@ -262,22 +281,15 @@ export class CultivestPortfolioNFT extends Contract {
     
     // Update total supply
     this.totalSupply.value = this.totalSupply.value - 1;
+
+    // Delete portfolio from box storage
+    this.portfolioOwner(portfolioTokenId).delete();
+    this.portfolioPositionCount(portfolioTokenId).delete();
+    this.positionToPortfolio(portfolioTokenId).delete();
     
     // Log burn event for off-chain cleanup
     log(op.concat(Bytes('portfolio_burned:'), op.itob(portfolioTokenId)));
     log(op.concat(Bytes('portfolio_burned_owner:'), owner.bytes));
-  }
-
-  /**
-   * Set the Position NFT contract app ID (admin only)
-   */
-  @abimethod()
-  setPositionNFTApp(appId: uint64): void {
-    assert(Txn.sender === this.authorizedMinter.value);
-    assert(appId > 0);
-    
-    this.positionNFTAppId.value = appId;
-    log(op.concat(Bytes('position_nft_app_set:'), op.itob(appId)));
   }
 
   /**
@@ -296,15 +308,12 @@ export class CultivestPortfolioNFT extends Contract {
 
   /**
    * Check if portfolio token ID is valid (read-only)
-   * For MVP: Only checks if token ID is in valid range
-   * Off-chain system tracks full portfolio metadata
    */
   @abimethod({ readonly: true })
-  portfolioExists(portfolioTokenId: uint64): uint64 {
-    if (portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value) {
-      return 1; // Token ID is in valid range
-    }
-    return 0;
+  portfolioExists(portfolioTokenId: uint64): boolean {
+    // Check if portfolio exists
+    const portfolio = this.portfolioOwner(portfolioTokenId);
+    return portfolio.exists;
   }
 
   /**
@@ -317,4 +326,54 @@ export class CultivestPortfolioNFT extends Contract {
     
     log(op.concat(Bytes('minter_updated:'), newMinter.bytes));
   }
+
+  // Get the portfolio count for a given owner
+  @abimethod({ readonly: true })
+  getPortfolioCountForOwner(tokenId: uint64): uint64 {
+    const count = this.portfolioPositionCount(tokenId);
+    if (count.exists) {
+      return count.value;
+    }
+    return 0;
+  }
+
+  // Get the portfolio owner for a given token ID
+  @abimethod({ readonly: true })
+  getPortfolioOwner(tokenId: uint64): bytes {
+    const owner = this.portfolioOwner(tokenId);
+    assert(owner.exists, 'Portfolio does not exist');
+    return owner.value.bytes;
+  }
+
+  // Get the portfolio level for a given token ID
+  @abimethod({ readonly: true })
+  getPortfolioLevel(tokenId: uint64): uint64 {
+    const level = this.portfolioLevel(tokenId);
+    if (level.exists) {
+      return level.value;
+    }
+    return 0;
+  }
+
+  // Get the portfolio created timestamp for a given token ID
+  @abimethod({ readonly: true })
+  getPortfolioCreated(tokenId: uint64): uint64 {
+    const created = this.portfolioCreated(tokenId);
+    if (created.exists) {
+      return created.value;
+    }
+    return 0;
+  }
+
+  // Get the portfolio metadata CID for a given token ID
+  @abimethod({ readonly: true })
+  getPortfolioMetadataCID(tokenId: uint64): string {
+    const metadataCID = this.portfolioMetadataCID(tokenId);
+    if (metadataCID.exists) {
+      return metadataCID.value;
+    }
+    return '';
+  }
+
+
 }

@@ -1,9 +1,10 @@
 import { Config } from '@algorandfoundation/algokit-utils'
 import { registerDebugEventHandlers } from '@algorandfoundation/algokit-utils-debug'
 import { algorandFixture } from '@algorandfoundation/algokit-utils/testing'
-import { Address } from 'algosdk'
+import algosdk, { Address } from 'algosdk'
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
-import { CultivestPortfolioNftFactory } from '../artifacts/portfolio-nft/CultivestPortfolioNFTClient'
+import { CultivestPortfolioNftClient, CultivestPortfolioNftFactory } from '../artifacts/portfolio-nft/CultivestPortfolioNFTClient'
+import { AppClient } from '@algorandfoundation/algokit-utils/types/app-client'
 
 describe('CultivestPortfolioNFT E2E Tests', () => {
   const localnet = algorandFixture()
@@ -45,35 +46,25 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     expect(stats.return![4]).toBe(0n) // Position NFT app ID (not set yet)
   })
 
-  test('sets Position NFT app ID successfully', async () => {
-    const { testAccount } = localnet.context
-    const { client } = await deploy(testAccount)
-
-    // Set the Position NFT app ID
-    await client.send.setPositionNftApp({ 
-      args: { appId: 12345n } 
+  const fundContract = async (client: CultivestPortfolioNftClient, sender: Address) => {
+    await localnet.algorand.send.payment({
+      sender: sender.toString(),
+      receiver: client.appAddress.toString(),
+      amount: (1).algo()
     })
-
-    // Verify it was set
-    const stats = await client.send.getContractStats({ args: {} })
-    expect(stats.return![4]).toBe(12345n) // Position NFT app ID
-  })
+  }
 
   test('mints portfolio NFT successfully', async () => {
-    const { testAccount } = localnet.context
+    const testAccount = await localnet.context.generateAccount({ initialFunds: (2).algo() })
     const { client } = await deploy(testAccount)
 
-    // Set Position NFT app first
-    await client.send.setPositionNftApp({ 
-      args: { appId: 12345n } 
-    })
-
+    await fundContract(client, testAccount)
     // Mint a portfolio token
     const result = await client.send.mintPortfolio({
       args: {
         owner: testAccount.addr.toString(),
         level: 1n,
-        totalInvestedUsd: 1000n // $10.00
+        metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh'
       }
     })
 
@@ -83,19 +74,46 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const stats = await client.send.getContractStats({ args: {} })
     expect(stats.return![0]).toBe(1n) // Total tokens minted
     expect(stats.return![1]).toBe(1n) // Current supply
+
+    const portfolioExists = await client.send.portfolioExists({ args: { portfolioTokenId: 1n } })
+    expect(portfolioExists.return).toBe(true)
+
+    // Lets check the box storage
+    const portfolioCount = await client.send.getPortfolioCountForOwner({ args: { tokenId: 1n } })
+    expect(portfolioCount.return).toBe(0n)
+
+    const portfolioOwnerBytes = await client.send.getPortfolioOwner({ args: { tokenId: 1n } })
+
+    // use algo encoding to decode the address
+    const ownerBytes = portfolioOwnerBytes.return!
+    const address = algosdk.encodeAddress(new Uint8Array(ownerBytes))
+    expect(address).toBe(testAccount.addr.toString())
+    console.log('portfolioOwner vs: ', address, testAccount.addr.toString())
+
+    const portfolioLevel = await client.send.getPortfolioLevel({ args: { tokenId: 1n } })
+    expect(portfolioLevel.return).toBe(1n)
+
+    const portfolioMetadataCID = await client.send.getPortfolioMetadataCid({ args: { tokenId: 1n } })
+    expect(portfolioMetadataCID.return).toBe('QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh')
   })
 
   test('mints multiple portfolio NFTs with different levels', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
+    await fundContract(client, testAccount)
 
     // Mint portfolios with different levels
+
+    const threeRandomCids = [
+      'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh',
+      'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLs',
+      'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLm',
+    ]
     const portfolios = [
-      { level: 1n, invested: 500n },   // $5.00
-      { level: 3n, invested: 2500n },  // $25.00
-      { level: 5n, invested: 15000n }, // $150.00
+      { level: 1n, metadataCid: threeRandomCids[0] },   // $5.00
+      { level: 3n, metadataCid: threeRandomCids[1] },  // $25.00
+      { level: 5n, metadataCid: threeRandomCids[2] }, // $150.00
     ]
 
     for (let i = 0; i < portfolios.length; i++) {
@@ -103,10 +121,25 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
         args: {
           owner: testAccount.addr.toString(),
           level: portfolios[i].level,
-          totalInvestedUsd: portfolios[i].invested
+          metadataCid: portfolios[i].metadataCid
         }
       })
       expect(result.return).toBe(BigInt(i + 1))
+
+      const portfolioCount = await client.send.getPortfolioCountForOwner({ args: { tokenId: result.return! } })
+      expect(portfolioCount.return).toBe(0n)
+
+      const portfolioOwnerBytes = await client.send.getPortfolioOwner({ args: { tokenId: result.return! } })
+      const ownerBytes = portfolioOwnerBytes.return!
+      const address = algosdk.encodeAddress(new Uint8Array(ownerBytes))
+      expect(address).toBe(testAccount.addr.toString())
+
+      const portfolioLevel = await client.send.getPortfolioLevel({ args: { tokenId: result.return! } })
+      expect(portfolioLevel.return).toBe(portfolios[i].level)
+
+      const portfolioMetadataCID = await client.send.getPortfolioMetadataCid({ args: { tokenId: result.return! } })
+      expect(portfolioMetadataCID.return).toBe(portfolios[i].metadataCid)
+      
     }
 
     // Check final stats
@@ -119,14 +152,12 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
-
     // Mint a portfolio
     const portfolioResult = await client.send.mintPortfolio({
       args: {
         owner: testAccount.addr.toString(),
         level: 2n,
-        totalInvestedUsd: 1500n
+        metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh'
       }
     })
     const portfolioTokenId = portfolioResult.return!
@@ -157,14 +188,12 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
-
     // Mint portfolio and add positions
     const portfolioResult = await client.send.mintPortfolio({
       args: {
         owner: testAccount.addr.toString(),
         level: 2n,
-        totalInvestedUsd: 1500n
+        metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh'
       }
     })
     const portfolioTokenId = portfolioResult.return!
@@ -194,14 +223,12 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
-
     // Mint portfolio
     const portfolioResult = await client.send.mintPortfolio({
       args: {
         owner: testAccount.addr.toString(),
         level: 1n,
-        totalInvestedUsd: 1000n
+        metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh'
       }
     })
     const portfolioTokenId = portfolioResult.return!
@@ -211,8 +238,7 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
       args: {
         portfolioTokenId,
         newLevel: 3n,
-        newTotalValueUsd: 2500n,
-        newTotalInvestedUsd: 2000n
+        newMetadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh'
       }
     })
 
@@ -225,14 +251,12 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { client } = await deploy(testAccount)
     const secondAccount = await localnet.context.generateAccount({ initialFunds: (1).algo() })
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
-
     // Mint portfolio
     const portfolioResult = await client.send.mintPortfolio({
       args: {
         owner: testAccount.addr.toString(),
         level: 1n,
-        totalInvestedUsd: 1000n
+        metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh'
       }
     })
     const portfolioTokenId = portfolioResult.return!
@@ -254,14 +278,12 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
-
     // Mint multiple portfolios
     await client.send.mintPortfolio({
-      args: { owner: testAccount.addr.toString(), level: 1n, totalInvestedUsd: 1000n }
+      args: { owner: testAccount.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
     })
     await client.send.mintPortfolio({
-      args: { owner: testAccount.addr.toString(), level: 2n, totalInvestedUsd: 1500n }
+      args: { owner: testAccount.addr.toString(), level: 2n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
     })
 
     // Burn first portfolio
@@ -282,8 +304,6 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
-
     // Check non-existent token
     const existsResult1 = await client.send.portfolioExists({
       args: { portfolioTokenId: 1n }
@@ -292,10 +312,10 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
 
     // Mint a portfolio
     await client.send.mintPortfolio({
-      args: { owner: testAccount.addr.toString(), level: 1n, totalInvestedUsd: 1000n }
+      args: { owner: testAccount.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
     })
 
-    // Check existing token
+    // Check existing token 
     const existsResult2 = await client.send.portfolioExists({
       args: { portfolioTokenId: 1n }
     })
@@ -313,12 +333,8 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     // These operations should fail with unauthorized account
     await expect(
       unauthorizedClient.send.mintPortfolio({
-        args: { owner: unauthorizedAccount.addr.toString(), level: 1n, totalInvestedUsd: 1000n }
+        args: { owner: unauthorizedAccount.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
       })
-    ).rejects.toThrow()
-
-    await expect(
-      unauthorizedClient.send.setPositionNftApp({ args: { appId: 12345n } })
     ).rejects.toThrow()
 
     await expect(
@@ -340,9 +356,8 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const newMinterClient = client.clone({ defaultSender: newMinter })
 
     // New minter should be able to mint
-    await newMinterClient.send.setPositionNftApp({ args: { appId: 12345n } })
     const result = await newMinterClient.send.mintPortfolio({
-      args: { owner: newMinter.addr.toString(), level: 1n, totalInvestedUsd: 1000n }
+      args: { owner: newMinter.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
     })
 
     expect(result.return).toBe(1n)
@@ -354,14 +369,12 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
     const user1 = await localnet.context.generateAccount({ initialFunds: (1).algo() })
     const user2 = await localnet.context.generateAccount({ initialFunds: (1).algo() })
 
-    await client.send.setPositionNftApp({ args: { appId: 12345n } })
-
     // 1. Mint portfolios for multiple users
     const portfolio1 = await client.send.mintPortfolio({
-      args: { owner: user1.addr.toString(), level: 1n, totalInvestedUsd: 1000n }
+      args: { owner: user1.addr.toString(), level: 1n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
     })
     const portfolio2 = await client.send.mintPortfolio({
-      args: { owner: user2.addr.toString(), level: 2n, totalInvestedUsd: 2000n }
+      args: { owner: user2.addr.toString(), level: 2n, metadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh' }
     })
 
     // 2. Add positions to portfolios
@@ -380,8 +393,7 @@ describe('CultivestPortfolioNFT E2E Tests', () => {
       args: {
         portfolioTokenId: portfolio1.return!,
         newLevel: 3n,
-        newTotalValueUsd: 2500n,
-        newTotalInvestedUsd: 1500n
+        newMetadataCid: 'QmXg9Pp2ytZ14k4mPqMdsWAPp6jgTzD1XH8eWpLw2j2jLh'
       }
     })
 
