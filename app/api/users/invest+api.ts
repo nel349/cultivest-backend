@@ -143,7 +143,7 @@ router.post('/:userId/invest', async (req, res) => {
       // For direct investments, use the provided algorandAddress from request
       const portfolioOwnerAddress = isMoonPayPurchase && wallet ? wallet.algorand_address : algorandAddress;
       
-      const portfolioResult = await nftContractService.mintPortfolioToken(userId, {
+      const portfolioResult = await nftContractService.mintPortfolioToken({
         owner: portfolioOwnerAddress,
         level: 1, // Start at level 1
         metadataCid: 'QmDefaultPortfolioMetadata' // TODO: Generate proper metadata
@@ -229,7 +229,7 @@ router.post('/:userId/invest', async (req, res) => {
     // For direct investments, use the provided algorandAddress from request
     const ownerAddress = isMoonPayPurchase && wallet ? wallet.algorand_address : algorandAddress;
     
-    const positionResult = await nftContractService.mintPositionToken(userId, {
+    const positionResult = await nftContractService.mintPositionToken({
       owner: ownerAddress,
       assetType,
       holdings: BigInt(calculatedHoldings),

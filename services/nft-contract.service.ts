@@ -113,7 +113,6 @@ export class NFTContractService {
    * @param params.purchaseValueUsd - Purchase value in USD cents
    */
   async mintPositionToken(
-    userId: string,
     params: {
       owner: string; // Recipient address - who will own the NFT
       assetType: number; // 1=Bitcoin, 2=Algorand, 3=USDC
@@ -170,7 +169,6 @@ export class NFTContractService {
    * @param params.newHoldings - New holdings amount
    */
   async updatePositionToken(
-    userId: string,
     params: {
       positionTokenId: bigint;
       newHoldings: bigint;
@@ -451,7 +449,6 @@ export class NFTContractService {
    * @param params.metadataCid - IPFS CID for portfolio metadata
    */
   async mintPortfolioToken(
-    userId: string,
     params: {
       owner: string; // Recipient address - who will own the portfolio NFT
       level: number;

@@ -185,7 +185,7 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       const { userPortfolioService } = await import('../services/user-portfolio.service');
       
       // Mint portfolio NFT for the user
-      const portfolioResult = await nftContractService.mintPortfolioToken(userId, {
+      const portfolioResult = await nftContractService.mintPortfolioToken({
         owner: algorandAddress.toString(),
         level: 1,
         metadataCid: 'QmDefaultOnboardingPortfolioMetadata'

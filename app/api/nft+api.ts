@@ -41,7 +41,7 @@ router.post('/position/mint', async (req, res) => {
       });
     }
 
-    const result = await nftContractService.mintPositionToken(userId, {
+    const result = await nftContractService.mintPositionToken({
       owner,
       assetType,
       holdings: BigInt(holdings),
@@ -79,7 +79,7 @@ router.put('/position/update', async (req, res) => {
       });
     }
 
-    const result = await nftContractService.updatePositionToken(userId, {
+    const result = await nftContractService.updatePositionToken({
       positionTokenId: BigInt(positionTokenId),
       newHoldings: BigInt(newHoldings)
     });
@@ -370,7 +370,7 @@ router.post('/portfolio/mint', async (req, res) => {
       });
     }
 
-    const result = await nftContractService.mintPortfolioToken(userId, {
+    const result = await nftContractService.mintPortfolioToken({
       owner,
       level,
       metadataCid
@@ -626,7 +626,7 @@ router.post('/create-investment', async (req, res) => {
     }
 
     // Step 1: Mint position token
-    const positionResult = await nftContractService.mintPositionToken(userId, {
+    const positionResult = await nftContractService.mintPositionToken({
       owner,
       assetType,
       holdings: BigInt(holdings),
