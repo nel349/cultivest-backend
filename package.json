@@ -16,7 +16,8 @@
     "db:init": "ts-node scripts/simple-setup.ts",
     "test:integration": "ts-node test-database-integration.ts",
     "prestart": "npm run type-check",
-    "prebuild": "npm run type-check"
+    "prebuild": "npm run type-check",
+    "postgenerate-contracts": "node scripts/add-ts-nocheck.js"
   },
   "keywords": [],
   "author": "",

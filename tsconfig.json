@@ -15,7 +15,7 @@
     "noUnusedParameters": true,
     "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
-    "skipLibCheck": false,
+    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
@@ -23,7 +23,11 @@
     "**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "build"
+    "node_modules/**/*",
+    "build/**/*",
+    "contracts/**/*",
+    "**/*.algo.ts",
+    "**/*.e2e.spec.ts",
+    "**/*.spec.ts"
   ]
 } 

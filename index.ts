@@ -1,8 +1,6 @@
   import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
-import algosdk from 'algosdk';
 import helloRoutes from './app/api/hello+api';
 import loginRoutes from './app/api/auth/login+api';
 import signupRoutes from './app/api/auth/signup+api';
@@ -67,12 +65,12 @@ app.use(express.json()); // Enable JSON body parsing
 // const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Basic route for health check
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.status(200).json({ message: 'Cultivest Backend API is running (TypeScript)!' });
 });
 
 // Add a test route for the API
-app.get('/api/v1/test', (req, res) => {
+app.get('/api/v1/test', (_req, res) => {
   res.status(200).json({ message: 'Cultivest Backend API Test is running (TypeScript)!' });
 });
 

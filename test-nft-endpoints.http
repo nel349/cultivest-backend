@@ -181,7 +181,7 @@ Content-Type: application/json
 }
 
 ### Get User's Investment Summary
-GET http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/investments
+GET http://localhost:3000/api/v1/users/5f5ee119-9f95-4b86-863c-44944507eced/investments
 
 ### Get User's Specific Investment by Position Token ID
 GET http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/investments/1
