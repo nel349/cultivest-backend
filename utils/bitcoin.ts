@@ -197,24 +197,31 @@ export const getBitcoinBalance = async (address: string): Promise<number> => {
       throw new Error(`BlockCypher API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     
     // BlockCypher returns balance in satoshis, convert to BTC
-    const balanceSatoshis = data.balance || 0;
-    const balanceBTC = balanceSatoshis / 100000000; // 1 BTC = 100,000,000 satoshis
+    const confirmedSatoshis = data.balance || 0;
+    const unconfirmedSatoshis = data.unconfirmed_balance || 0;
+    const totalSatoshis = confirmedSatoshis + unconfirmedSatoshis;
+    const totalBTC = totalSatoshis / 100000000; // 1 BTC = 100,000,000 satoshis
     
-    console.log(`💰 Bitcoin balance for ${address}: ${balanceBTC} BTC (${balanceSatoshis} satoshis)`);
+    console.log(`💰 Bitcoin balance for ${address}: ${totalBTC} BTC (${totalSatoshis} satoshis total)`);
     console.log(`🔍 Balance details:`, {
       address: data.address,
-      balance: balanceBTC,
-      balanceSatoshis: balanceSatoshis,
-      unconfirmedBalance: (data.unconfirmed_balance || 0) / 100000000,
+      confirmedBalance: confirmedSatoshis / 100000000,
+      unconfirmedBalance: unconfirmedSatoshis / 100000000,
+      totalBalance: totalBTC,
+      totalSatoshis: totalSatoshis,
       totalReceived: (data.total_received || 0) / 100000000,
       totalSent: (data.total_sent || 0) / 100000000,
       numTx: data.n_tx || 0
     });
     
-    return balanceBTC;
+    if (unconfirmedSatoshis > 0) {
+      console.log(`⏳ Note: ${unconfirmedSatoshis / 100000000} BTC is unconfirmed and pending blockchain confirmation`);
+    }
+    
+    return totalBTC;
     
   } catch (error) {
     console.error('❌ Error fetching Bitcoin balance:', error);
