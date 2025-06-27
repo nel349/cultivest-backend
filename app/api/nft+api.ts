@@ -70,19 +70,18 @@ router.post('/position/mint', async (req, res) => {
  */
 router.put('/position/update', async (req, res) => {
   try {
-    const { userId, positionTokenId, newHoldings, newCurrentValueUsd } = req.body;
+    const { userId, positionTokenId, newHoldings } = req.body;
 
-    if (!userId || !positionTokenId || !newHoldings || !newCurrentValueUsd) {
+    if (!userId || !positionTokenId || !newHoldings) {
       return res.status(400).json({
         success: false,
-        error: 'All fields are required: userId, positionTokenId, newHoldings, newCurrentValueUsd'
+        error: 'All fields are required: userId, positionTokenId, newHoldings'
       });
     }
 
     const result = await nftContractService.updatePositionToken(userId, {
       positionTokenId: BigInt(positionTokenId),
-      newHoldings: BigInt(newHoldings),
-      newCurrentValueUsd: BigInt(newCurrentValueUsd)
+      newHoldings: BigInt(newHoldings)
     });
 
     return res.json({
@@ -103,7 +102,7 @@ router.put('/position/update', async (req, res) => {
 
 /**
  * Get Position NFT contract statistics
- * GET /api/nft/position/:appId/stats
+ * GET /api/nft/position/stats
  */
 router.get('/position/stats', async (req, res) => {
   try {
@@ -127,6 +126,209 @@ router.get('/position/stats', async (req, res) => {
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to get stats'
+    });
+  }
+});
+
+/**
+ * Check if a position token exists
+ * GET /api/nft/position/:tokenId/exists
+ */
+router.get('/position/:tokenId/exists', async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID query parameter is required'
+      });
+    }
+
+    const result = await nftContractService.positionExists(userId as string, BigInt(tokenId));
+
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Position exists check error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to check if position exists'
+    });
+  }
+});
+
+/**
+ * Get position token owner
+ * GET /api/nft/position/:tokenId/owner
+ */
+router.get('/position/:tokenId/owner', async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID query parameter is required'
+      });
+    }
+
+    const result = await nftContractService.getPositionOwner(userId as string, BigInt(tokenId));
+
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Get position owner error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get position owner'
+    });
+  }
+});
+
+/**
+ * Get position token asset type
+ * GET /api/nft/position/:tokenId/asset-type
+ */
+router.get('/position/:tokenId/asset-type', async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID query parameter is required'
+      });
+    }
+
+    const result = await nftContractService.getPositionAssetType(userId as string, BigInt(tokenId));
+
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Get position asset type error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get position asset type'
+    });
+  }
+});
+
+/**
+ * Get position token holdings
+ * GET /api/nft/position/:tokenId/holdings
+ */
+router.get('/position/:tokenId/holdings', async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID query parameter is required'
+      });
+    }
+
+    const result = await nftContractService.getPositionHoldings(userId as string, BigInt(tokenId));
+
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Get position holdings error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get position holdings'
+    });
+  }
+});
+
+/**
+ * Get position token purchase value
+ * GET /api/nft/position/:tokenId/purchase-value
+ */
+router.get('/position/:tokenId/purchase-value', async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID query parameter is required'
+      });
+    }
+
+    const result = await nftContractService.getPositionPurchaseValue(userId as string, BigInt(tokenId));
+
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Get position purchase value error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get position purchase value'
+    });
+  }
+});
+
+/**
+ * Get all position token data (convenience endpoint)
+ * GET /api/nft/position/:tokenId
+ */
+router.get('/position/:tokenId', async (req, res) => {
+  try {
+    const { tokenId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID query parameter is required'
+      });
+    }
+
+    // Get all position data in parallel
+    const [exists, owner, assetType, holdings, purchaseValue] = await Promise.all([
+      nftContractService.positionExists(userId as string, BigInt(tokenId)),
+      nftContractService.getPositionOwner(userId as string, BigInt(tokenId)),
+      nftContractService.getPositionAssetType(userId as string, BigInt(tokenId)),
+      nftContractService.getPositionHoldings(userId as string, BigInt(tokenId)),
+      nftContractService.getPositionPurchaseValue(userId as string, BigInt(tokenId))
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        tokenId: tokenId,
+        exists: exists.exists,
+        owner: owner.owner,
+        ownerBase64: owner.ownerBase64,
+        assetType: assetType.assetType,
+        assetTypeName: assetType.assetTypeName,
+        holdings: holdings.holdings,
+        purchaseValue: purchaseValue.purchaseValue,
+        appId: exists.appId
+      }
+    });
+  } catch (error) {
+    console.error('Get position data error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get position data'
     });
   }
 });

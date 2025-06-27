@@ -160,7 +160,7 @@ export class NFTContractService {
   }
 
   /**
-   * Update position token holdings and value
+   * Update position token holdings
    * 
    * ROLES:
    * - Signer: Authorized minter (backend service using deployer credentials)
@@ -169,14 +169,12 @@ export class NFTContractService {
    * @param userId - Used for logging/tracking purposes  
    * @param params.positionTokenId - The token ID to update
    * @param params.newHoldings - New holdings amount
-   * @param params.newCurrentValueUsd - New current value in USD cents
    */
   async updatePositionToken(
     userId: string,
     params: {
       positionTokenId: bigint;
       newHoldings: bigint;
-      newCurrentValueUsd: bigint;
     }
   ) {
     try {
@@ -197,8 +195,7 @@ export class NFTContractService {
       const response = await appClient.send.updatePosition({
         args: {
           positionTokenId: params.positionTokenId,
-          newHoldings: params.newHoldings,
-          newCurrentValueUsd: params.newCurrentValueUsd
+          newHoldings: params.newHoldings
         }
       });
 
@@ -244,6 +241,196 @@ export class NFTContractService {
       };
     } catch (error) {
       console.error('Position NFT stats error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if a position token exists
+   */
+  async positionExists(userId: string, tokenId: bigint) {
+    try {
+      const { account, address } = await this.getUserSigningAccount(userId);
+      
+      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+      
+      const factory = new CultivestPositionNftFactory({
+        defaultSender: address,
+        algorand: this.algorand,
+      });
+
+      const appClient = factory.getAppClientById({
+        appId: BigInt(this.POSITION_NFT_APP_ID)
+      });
+
+      const response = await appClient.send.positionExists({
+        args: { tokenId }
+      });
+
+      return {
+        exists: response.return || false,
+        tokenId: tokenId.toString(),
+        appId: this.POSITION_NFT_APP_ID
+      };
+    } catch (error) {
+      console.error('Position exists check error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get position token owner
+   */
+  async getPositionOwner(userId: string, tokenId: bigint) {
+    try {
+      const { account, address } = await this.getUserSigningAccount(userId);
+      
+      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+      
+      const factory = new CultivestPositionNftFactory({
+        defaultSender: address,
+        algorand: this.algorand,
+      });
+
+      const appClient = factory.getAppClientById({
+        appId: BigInt(this.POSITION_NFT_APP_ID)
+      });
+
+      const response = await appClient.send.getPositionOwner({
+        args: { tokenId }
+      });
+
+      // Convert Base64 encoded bytes to Algorand address
+      const ownerBytes = response.return;
+      let ownerAddress = '';
+      let ownerBase64 = '';
+      
+      if (ownerBytes) {
+        try {
+          // Convert to Base64 for consistent format
+          ownerBase64 = Buffer.from(ownerBytes as any).toString('base64');
+          // Convert to Algorand address
+          ownerAddress = algosdk.encodeAddress(new Uint8Array(ownerBytes as any));
+        } catch (error) {
+          console.error('Error converting owner bytes:', error);
+        }
+      }
+
+      return {
+        owner: ownerAddress,
+        ownerBase64: ownerBase64,
+        tokenId: tokenId.toString(),
+        appId: this.POSITION_NFT_APP_ID
+      };
+    } catch (error) {
+      console.error('Get position owner error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get position token asset type
+   */
+  async getPositionAssetType(userId: string, tokenId: bigint) {
+    try {
+      const { account, address } = await this.getUserSigningAccount(userId);
+      
+      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+      
+      const factory = new CultivestPositionNftFactory({
+        defaultSender: address,
+        algorand: this.algorand,
+      });
+
+      const appClient = factory.getAppClientById({
+        appId: BigInt(this.POSITION_NFT_APP_ID)
+      });
+
+      const response = await appClient.send.getPositionAssetType({
+        args: { tokenId }
+      });
+
+      const assetType = response.return || BigInt(0);
+      const assetTypeNames = {
+        1: 'Bitcoin',
+        2: 'Algorand', 
+        3: 'USDC'
+      };
+
+      return {
+        assetType: assetType.toString(),
+        assetTypeName: assetTypeNames[Number(assetType) as keyof typeof assetTypeNames] || 'Unknown',
+        tokenId: tokenId.toString(),
+        appId: this.POSITION_NFT_APP_ID
+      };
+    } catch (error) {
+      console.error('Get position asset type error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get position token holdings
+   */
+  async getPositionHoldings(userId: string, tokenId: bigint) {
+    try {
+      const { account, address } = await this.getUserSigningAccount(userId);
+      
+      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+      
+      const factory = new CultivestPositionNftFactory({
+        defaultSender: address,
+        algorand: this.algorand,
+      });
+
+      const appClient = factory.getAppClientById({
+        appId: BigInt(this.POSITION_NFT_APP_ID)
+      });
+
+      const response = await appClient.send.getPositionHoldings({
+        args: { tokenId }
+      });
+
+      return {
+        holdings: (response.return || BigInt(0)).toString(),
+        tokenId: tokenId.toString(),
+        appId: this.POSITION_NFT_APP_ID
+      };
+    } catch (error) {
+      console.error('Get position holdings error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get position token purchase value
+   */
+  async getPositionPurchaseValue(userId: string, tokenId: bigint) {
+    try {
+      const { account, address } = await this.getUserSigningAccount(userId);
+      
+      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+      
+      const factory = new CultivestPositionNftFactory({
+        defaultSender: address,
+        algorand: this.algorand,
+      });
+
+      const appClient = factory.getAppClientById({
+        appId: BigInt(this.POSITION_NFT_APP_ID)
+      });
+
+      const response = await appClient.send.getPositionPurchaseValue({
+        args: { tokenId }
+      });
+
+      return {
+        purchaseValue: (response.return || BigInt(0)).toString(),
+        tokenId: tokenId.toString(),
+        appId: this.POSITION_NFT_APP_ID
+      };
+    } catch (error) {
+      console.error('Get position purchase value error:', error);
       throw error;
     }
   }
