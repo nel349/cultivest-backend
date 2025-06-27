@@ -1,6 +1,7 @@
 import { Config } from '@algorandfoundation/algokit-utils'
 import { registerDebugEventHandlers } from '@algorandfoundation/algokit-utils-debug'
 import { algorandFixture } from '@algorandfoundation/algokit-utils/testing'
+import { AlgoAmount } from '@algorandfoundation/algokit-utils/types/amount'
 import { Address } from 'algosdk'
 import * as algosdk from 'algosdk'
 import { beforeAll, beforeEach, describe, expect, test } from 'vitest'
@@ -17,6 +18,15 @@ describe('CultivestPositionNFT E2E Tests', () => {
   })
   beforeEach(localnet.newScope)
 
+  const fundContract = async (client: any, sender: Address) => {
+    // Fund the contract for box storage
+    await localnet.algorand.send.payment({
+      sender,
+      receiver: client.appAddress,
+      amount: AlgoAmount.Algos(5) // 5 ALGO for box storage
+    })
+  }
+
   const deploy = async (account: Address) => {
     const factory = localnet.algorand.client.getTypedAppFactory(CultivestPositionNftFactory, {
       defaultSender: account,
@@ -30,6 +40,10 @@ describe('CultivestPositionNFT E2E Tests', () => {
         args: []
       }
     })
+    
+    // Set the deployer as the authorized minter
+    await appClient.send.setAuthorizedMinter({ args: { newMinter: account.toString() } })
+    
     return { client: appClient }
   }
 
@@ -45,9 +59,11 @@ describe('CultivestPositionNFT E2E Tests', () => {
     expect(stats.return![3]).toBe(1n) // Contract version
   })
 
-  test('mints Bitcoin position NFT successfully', async () => {
+  test('mints Bitcoin position NFT successfully and stores data', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
+
+    await fundContract(client, testAccount)
 
     const result = await client.send.mintPosition({
       args: {
@@ -59,10 +75,25 @@ describe('CultivestPositionNFT E2E Tests', () => {
     })
 
     expect(result.return).toBe(1n) // First token ID
+    const tokenId = result.return!
 
-    // Verify token exists
-    const existsResult = await client.send.tokenExists({ args: { positionTokenId: 1n } })
-    expect(existsResult.return).toBe(1n)
+    // Verify token exists using new method
+    const existsResult = await client.send.positionExists({ args: { tokenId } })
+    expect(existsResult.return).toBe(true)
+
+    // Verify stored data using new getter methods
+    const ownerBytes = await client.send.getPositionOwner({ args: { tokenId } })
+    const ownerAddress = algosdk.encodeAddress(new Uint8Array(ownerBytes.return!))
+    expect(ownerAddress).toBe(testAccount.addr.toString())
+
+    const assetType = await client.send.getPositionAssetType({ args: { tokenId } })
+    expect(assetType.return).toBe(1n) // Bitcoin
+
+    const holdings = await client.send.getPositionHoldings({ args: { tokenId } })
+    expect(holdings.return).toBe(10000n) // 10,000 sats
+
+    const purchaseValue = await client.send.getPositionPurchaseValue({ args: { tokenId } })
+    expect(purchaseValue.return).toBe(100n) // $1.00 in cents
 
     // Check updated stats
     const stats = await client.send.getContractStats({ args: {} })
@@ -73,6 +104,8 @@ describe('CultivestPositionNFT E2E Tests', () => {
   test('mints multiple different asset types', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
+
+    await fundContract(client, testAccount)
 
     // Mint Bitcoin position
     const btcResult = await client.send.mintPosition({
@@ -108,14 +141,32 @@ describe('CultivestPositionNFT E2E Tests', () => {
     expect(algoResult.return).toBe(2n)
     expect(usdcResult.return).toBe(3n)
 
-    // Verify all tokens exist
-    const btcExists = await client.send.tokenExists({ args: { positionTokenId: 1n } })
-    const algoExists = await client.send.tokenExists({ args: { positionTokenId: 2n } })
-    const usdcExists = await client.send.tokenExists({ args: { positionTokenId: 3n } })
+    // Verify all tokens exist and have correct data
+    const btcExists = await client.send.positionExists({ args: { tokenId: 1n } })
+    const algoExists = await client.send.positionExists({ args: { tokenId: 2n } })
+    const usdcExists = await client.send.positionExists({ args: { tokenId: 3n } })
 
-    expect(btcExists.return).toBe(1n)
-    expect(algoExists.return).toBe(1n)
-    expect(usdcExists.return).toBe(1n)
+    expect(btcExists.return).toBe(true)
+    expect(algoExists.return).toBe(true)
+    expect(usdcExists.return).toBe(true)
+
+    // Verify asset types are stored correctly
+    const btcAssetType = await client.send.getPositionAssetType({ args: { tokenId: 1n } })
+    const algoAssetType = await client.send.getPositionAssetType({ args: { tokenId: 2n } })
+    const usdcAssetType = await client.send.getPositionAssetType({ args: { tokenId: 3n } })
+
+    expect(btcAssetType.return).toBe(1n) // Bitcoin
+    expect(algoAssetType.return).toBe(2n) // Algorand
+    expect(usdcAssetType.return).toBe(3n) // USDC
+
+    // Verify holdings are stored correctly
+    const btcHoldings = await client.send.getPositionHoldings({ args: { tokenId: 1n } })
+    const algoHoldings = await client.send.getPositionHoldings({ args: { tokenId: 2n } })
+    const usdcHoldings = await client.send.getPositionHoldings({ args: { tokenId: 3n } })
+
+    expect(btcHoldings.return).toBe(50000n) // 50,000 sats
+    expect(algoHoldings.return).toBe(10000000n) // 10 ALGO
+    expect(usdcHoldings.return).toBe(25000000n) // $25 USDC
 
     // Check final stats
     const stats = await client.send.getContractStats({ args: {} })
@@ -126,6 +177,8 @@ describe('CultivestPositionNFT E2E Tests', () => {
   test('updates position values successfully', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
+
+    await fundContract(client, testAccount)
 
     // Mint a Bitcoin position
     const mintResult = await client.send.mintPosition({
@@ -139,12 +192,11 @@ describe('CultivestPositionNFT E2E Tests', () => {
 
     const tokenId = mintResult.return!
 
-    // Update the position with new holdings and value
+    // Update the position with new holdings
     const updateResult = await client.send.updatePosition({
       args: {
         positionTokenId: tokenId,
-        newHoldings: 15000n, // Increased to 15,000 sats
-        newCurrentValueUsd: 150n // Increased to $1.50
+        newHoldings: 15000n // Increased to 15,000 sats
       }
     })
 
@@ -168,21 +220,20 @@ describe('CultivestPositionNFT E2E Tests', () => {
     const loggedNewHoldings = newHoldingsBytes.readBigUInt64BE(0)
     expect(loggedNewHoldings).toBe(15000n)
     
-    // Find and verify position_new_value log
-    const newValueLog = logs.find(log => log.toString().startsWith('position_new_value:'))
-    expect(newValueLog).toBeDefined()
-    const newValueBytes = newValueLog!.slice('position_new_value:'.length)
-    const loggedNewValue = newValueBytes.readBigUInt64BE(0)
-    expect(loggedNewValue).toBe(150n)
-    console.log('new value: ', loggedNewValue)
-    console.log('new holdings: ', loggedNewHoldings)
-    console.log('token id: ', loggedTokenId)
+    // Verify the updated holdings are stored on-chain
+    const updatedHoldings = await client.send.getPositionHoldings({ args: { tokenId } })
+    expect(updatedHoldings.return).toBe(15000n)
+    
+    console.log('Updated holdings:', loggedNewHoldings)
+    console.log('Token ID:', loggedTokenId)
   })
 
   test('transfers position ownership successfully', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
     const recipient = await localnet.context.generateAccount({ initialFunds: (1).algo() })
+
+    await fundContract(client, testAccount)
 
     // Mint a position
     const mintResult = await client.send.mintPosition({
@@ -241,6 +292,8 @@ describe('CultivestPositionNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
+    await fundContract(client, testAccount)
+
     // Mint a position
     const mintResult = await client.send.mintPosition({
       args: {
@@ -268,6 +321,8 @@ describe('CultivestPositionNFT E2E Tests', () => {
   test('burns position successfully', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
+
+    await fundContract(client, testAccount)
 
     // Mint two positions
     const mint1 = await client.send.mintPosition({
@@ -313,6 +368,8 @@ describe('CultivestPositionNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
     const newMinter = await localnet.context.generateAccount({ initialFunds: (1).algo() })
+
+    await fundContract(client, testAccount)
 
     // Fund the new minter account
     await localnet.algorand.send.payment({
@@ -404,6 +461,8 @@ describe('CultivestPositionNFT E2E Tests', () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
 
+    await fundContract(client, testAccount)
+
     // Test transaction group with multiple mints
     const result = await client
       .newGroup()
@@ -439,6 +498,8 @@ describe('CultivestPositionNFT E2E Tests', () => {
   test('verifies event logging through transaction logs', async () => {
     const { testAccount } = localnet.context
     const { client } = await deploy(testAccount)
+
+    await fundContract(client, testAccount)
 
     // Mint a position and check that logs are generated
     const result = await client.send.mintPosition({

@@ -22,7 +22,7 @@ PUT http://localhost:3000/api/v1/nft/position/update
 Content-Type: application/json
 
 {
-  "userId": "test-user-123",
+  "userId": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
   "positionTokenId": "1",
   "newHoldings": "150000000",
   "newCurrentValueUsd": "7500000"

@@ -1,4 +1,4 @@
-import { Contract, GlobalState, uint64, log, op, assert, Txn, Account, Bytes, contract } from '@algorandfoundation/algorand-typescript';
+import { Contract, GlobalState, BoxMap, uint64, log, op, assert, Txn, Account, Bytes, contract, bytes } from '@algorandfoundation/algorand-typescript';
 import { abimethod } from '@algorandfoundation/algorand-typescript';
 
 /**
@@ -29,6 +29,19 @@ export class CultivestPositionNFT extends Contract {
   authorizedMinter = GlobalState<Account>();
   contractName = GlobalState<string>();
 
+  // Box storage for essential position data
+  // Key: tokenId (uint64) -> Value: owner (Account)
+  positionOwner = BoxMap<uint64, Account>({ keyPrefix: 'owner' });
+  
+  // Key: tokenId (uint64) -> Value: assetType (uint64) 1=BTC, 2=ALGO, 3=USDC
+  positionAssetType = BoxMap<uint64, uint64>({ keyPrefix: 'asset' });
+  
+  // Key: tokenId (uint64) -> Value: holdings amount in smallest units
+  positionHoldings = BoxMap<uint64, uint64>({ keyPrefix: 'holdings' });
+  
+  // Key: tokenId (uint64) -> Value: purchase value in USD cents
+  positionPurchaseValue = BoxMap<uint64, uint64>({ keyPrefix: 'purchase' });
+
   /**
    * Initialize the Position NFT contract
    */
@@ -48,8 +61,7 @@ export class CultivestPositionNFT extends Contract {
    * Mint new position token for an asset holding
    * Asset types: 1=Bitcoin, 2=Algorand, 3=USDC
    * 
-   * For MVP: Token metadata is stored off-chain using the logged events
-   * The contract only tracks basic state and emits detailed events for indexing
+   * Stores essential position data on-chain using BoxMap storage
    * 
    * @param owner - The Algorand address that will own this position token
    * @param assetType - Asset type: 1=Bitcoin, 2=Algorand, 3=USDC
@@ -76,6 +88,12 @@ export class CultivestPositionNFT extends Contract {
     this.nextTokenId.value = tokenId + 1;
     this.totalSupply.value = this.totalSupply.value + 1;
     
+    // Store essential position data on-chain
+    this.positionOwner(tokenId).value = owner;
+    this.positionAssetType(tokenId).value = assetType;
+    this.positionHoldings(tokenId).value = holdings;
+    this.positionPurchaseValue(tokenId).value = purchaseValueUSD;
+    
     // Log detailed minting event for off-chain indexing
     log(op.concat(Bytes('position_minted:'), op.itob(tokenId)));
     log(op.concat(Bytes('position_asset_type:'), op.itob(assetType)));
@@ -87,24 +105,28 @@ export class CultivestPositionNFT extends Contract {
   }
 
   /**
-   * Update position token holdings and current value
-   * For MVP: Only validates token exists via ID range, metadata tracked off-chain
+   * Update position token holdings (when user buys/sells more of the asset)
+   * Note: Current value is calculated off-chain using market prices
    */
   @abimethod()
   updatePosition(
     positionTokenId: uint64,
-    newHoldings: uint64,
-    newCurrentValueUSD: uint64
+    newHoldings: uint64
   ): void {
     assert(Txn.sender === this.authorizedMinter.value);
     assert(positionTokenId > 0 && positionTokenId < this.nextTokenId.value);
     assert(newHoldings > 0);
-    assert(newCurrentValueUSD > 0);
+    
+    // Verify position exists
+    const owner = this.positionOwner(positionTokenId);
+    assert(owner.exists, 'Position does not exist');
+    
+    // Update holdings on-chain
+    this.positionHoldings(positionTokenId).value = newHoldings;
     
     // Log update event for off-chain indexing
     log(op.concat(Bytes('position_updated:'), op.itob(positionTokenId)));
     log(op.concat(Bytes('position_new_holdings:'), op.itob(newHoldings)));
-    log(op.concat(Bytes('position_new_value:'), op.itob(newCurrentValueUSD)));
   }
 
   /**
@@ -222,5 +244,64 @@ export class CultivestPositionNFT extends Contract {
     this.authorizedMinter.value = newMinter;
     
     log(op.concat(Bytes('minter_updated:'), newMinter.bytes));
+  }
+
+  // =======================
+  // GETTER METHODS
+  // =======================
+
+  /**
+   * Get position owner
+   */
+  @abimethod({ readonly: true })
+  getPositionOwner(tokenId: uint64): bytes {
+    const owner = this.positionOwner(tokenId);
+    assert(owner.exists, 'Position does not exist');
+    return owner.value.bytes;
+  }
+
+  /**
+   * Get position asset type
+   */
+  @abimethod({ readonly: true })
+  getPositionAssetType(tokenId: uint64): uint64 {
+    const assetType = this.positionAssetType(tokenId);
+    if (assetType.exists) {
+      return assetType.value;
+    }
+    return 0;
+  }
+
+  /**
+   * Get position holdings amount
+   */
+  @abimethod({ readonly: true })
+  getPositionHoldings(tokenId: uint64): uint64 {
+    const holdings = this.positionHoldings(tokenId);
+    if (holdings.exists) {
+      return holdings.value;
+    }
+    return 0;
+  }
+
+  /**
+   * Get position purchase value
+   */
+  @abimethod({ readonly: true })
+  getPositionPurchaseValue(tokenId: uint64): uint64 {
+    const purchaseValue = this.positionPurchaseValue(tokenId);
+    if (purchaseValue.exists) {
+      return purchaseValue.value;
+    }
+    return 0;
+  }
+
+  /**
+   * Check if position exists
+   */
+  @abimethod({ readonly: true })
+  positionExists(tokenId: uint64): boolean {
+    const owner = this.positionOwner(tokenId);
+    return owner.exists;
   }
 }
