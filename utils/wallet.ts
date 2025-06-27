@@ -17,8 +17,10 @@ const usdcAssetId = parseInt(process.env.USDC_ASSET_ID || '10458941'); // USDCa 
 const encryptionKey = process.env.ENCRYPTION_KEY || 'fallback-key-change-in-production';
 
 // Initialize Algorand client
-// AlgoNode doesn't require a token, PureStake does
-const algodClient = new algosdk.Algodv2(algodToken, algodUrl, algodToken ? '' : undefined);
+// For localnet, don't pass the third parameter. For AlgoNode (testnet/mainnet), pass empty string if token is empty
+const algodClient = algodUrl.includes('localhost') 
+  ? new algosdk.Algodv2(algodToken, algodUrl)
+  : new algosdk.Algodv2(algodToken, algodUrl, algodToken ? '' : undefined);
 
 export interface WalletGenerationResult {
   success: boolean;

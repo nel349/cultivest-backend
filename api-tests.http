@@ -54,14 +54,13 @@ Content-Type: application/json
 GET {{baseUrl}}/debug/algorand-status
 
 ### Wallet Balance (Database only)
-GET {{baseUrl}}/wallet/balance?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e
+GET {{baseUrl}}/wallet/balance?userId=5f5ee119-9f95-4b86-863c-44944507eced
 
 ### Wallet Balance (With Live On-Chain Data)
-GET {{baseUrl}}/wallet/balance?userId=1c8fb4d3-c4e0-4184-8e7b-d5347019d28e&live=true
+GET {{baseUrl}}/wallet/balance?userId=5f5ee119-9f95-4b86-863c-44944507eced&live=true
 
 ### Live Algorand Balance by Address
-GET {{baseUrl}}/wallet/balance/live/6ABVCEUUO5IX6DUFJRZANIKKY7QPOWQRETQHRW5IK4AN2TKUXKBF5LFB6M
-
+GET {{baseUrl}}/wallet/balance/live/DSQQXQDGTFAZAU2NYIFKOT7324RHA5DXK4NZ2SUE47S2I5WFYOWMA7RVNA
 ### Test with your Algorand wallet address
 GET {{baseUrl}}/wallet/balance/live/NWPHQ7ZQJJQKBVD5RY4HYSBXHI5SLXDTBH3MUYZ3LK4MRY6JBKVEVTQOHA
 
