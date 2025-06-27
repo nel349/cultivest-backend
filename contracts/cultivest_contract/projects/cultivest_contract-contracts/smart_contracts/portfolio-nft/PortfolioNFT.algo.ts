@@ -50,6 +50,10 @@ export class CultivestPortfolioNFT extends Contract {
   // Rich metadata on IPFS
   portfolioMetadataCID = BoxMap<uint64, string>({ keyPrefix: 'ipfs' });
 
+  // Box storage for portfolio positions list (packed uint64 array)
+  // Key: portfolioTokenId (uint64) -> Value: packed array of position IDs (bytes)
+  portfolioPositions = BoxMap<uint64, bytes>({ keyPrefix: 'positions' });
+
   /**
    * Initialize the Portfolio NFT contract
    */
@@ -134,6 +138,20 @@ export class CultivestPortfolioNFT extends Contract {
     // Store the position-to-portfolio mapping
     this.positionToPortfolio(positionTokenId).value = portfolioTokenId;
     
+    // Add position to the portfolio's position list
+    const existingPositions = this.portfolioPositions(portfolioTokenId);
+    let newPositionsBytes: bytes;
+    
+    if (existingPositions.exists) {
+      // Append to existing list
+      newPositionsBytes = op.concat(existingPositions.value, op.itob(positionTokenId));
+    } else {
+      // Create new list with just this position
+      newPositionsBytes = op.itob(positionTokenId);
+    }
+    
+    this.portfolioPositions(portfolioTokenId).value = newPositionsBytes;
+    
     // Increment position count for this portfolio
     const currentCount = this.portfolioPositionCount(portfolioTokenId).value;
     this.portfolioPositionCount(portfolioTokenId).value = currentCount + 1;
@@ -170,6 +188,38 @@ export class CultivestPortfolioNFT extends Contract {
     
     // Remove the position-to-portfolio mapping
     this.positionToPortfolio(positionTokenId).delete();
+    
+    // Remove position from the portfolio's position list
+    const existingPositions = this.portfolioPositions(portfolioTokenId);
+    if (existingPositions.exists) {
+      const positionsBytes = existingPositions.value;
+      const positionIdBytes = op.itob(positionTokenId);
+      
+      // Find and remove the position ID from the packed array
+      let newPositionsBytes = Bytes('');
+      let found = false;
+      
+      // Iterate through 8-byte chunks (uint64 size)
+      for (let i: uint64 = 0; i < op.len(positionsBytes); i = i + 8) {
+        const currentPositionBytes = op.substring(positionsBytes, i, i + 8);
+        
+        if (!found && currentPositionBytes === positionIdBytes) {
+          // Skip this position (remove it)
+          found = true;
+        } else {
+          // Keep this position
+          newPositionsBytes = op.concat(newPositionsBytes, currentPositionBytes);
+        }
+      }
+      
+      if (op.len(newPositionsBytes) === 0) {
+        // No positions left, delete the box
+        this.portfolioPositions(portfolioTokenId).delete();
+      } else {
+        // Update with remaining positions
+        this.portfolioPositions(portfolioTokenId).value = newPositionsBytes;
+      }
+    }
     
     // Decrement position count for this portfolio
     const currentCount = this.portfolioPositionCount(portfolioTokenId).value;
@@ -209,6 +259,22 @@ export class CultivestPortfolioNFT extends Contract {
       return count.value;
     }
     return 0; // Portfolio has no positions
+  }
+
+  /**
+   * Get all position IDs in a portfolio (packed as bytes)
+   * Returns packed array of uint64 position IDs
+   * Each position ID is 8 bytes, so divide length by 8 to get count
+   */
+  @abimethod({ readonly: true })
+  getPortfolioPositionIds(portfolioTokenId: uint64): bytes {
+    assert(portfolioTokenId > 0 && portfolioTokenId < this.nextTokenId.value);
+    
+    const positions = this.portfolioPositions(portfolioTokenId);
+    if (positions.exists) {
+      return positions.value;
+    }
+    return Bytes(''); // Portfolio has no positions
   }
 
   /**
@@ -285,6 +351,7 @@ export class CultivestPortfolioNFT extends Contract {
     // Delete portfolio from box storage
     this.portfolioOwner(portfolioTokenId).delete();
     this.portfolioPositionCount(portfolioTokenId).delete();
+    this.portfolioPositions(portfolioTokenId).delete(); // Clean up positions list
     this.positionToPortfolio(portfolioTokenId).delete();
     this.portfolioLevel(portfolioTokenId).delete();
     this.portfolioCreated(portfolioTokenId).delete();

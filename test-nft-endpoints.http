@@ -79,18 +79,24 @@ Content-Type: application/json
 {
   "userId": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
   "portfolioTokenId": "2",
-  "positionTokenId": "1",
+  "positionTokenId": "2",
   "owner": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU"
 }
 
 ### Get Portfolio NFT Contract Stats
-GET http://localhost:3000/api/v1/nft/portfolio/stats?userId=test-user-123
+GET http://localhost:3000/api/v1/nft/portfolio/stats?userId=6ed81d5d-d15b-41f1-825c-8eff55a1a9fd
 
 ### Get Portfolio Position Count
-GET http://localhost:3000/api/v1/nft/portfolio/position-count/1?userId=test-user-123
+GET http://localhost:3000/api/v1/nft/portfolio/position-count/2?userId=6ed81d5d-d15b-41f1-825c-8eff55a1a9fd
 
 ### Get Which Portfolio a Position Belongs To
-GET http://localhost:3000/api/v1/nft/portfolio/position-portfolio/1?userId=test-user-123
+GET http://localhost:3000/api/v1/nft/portfolio/position-portfolio/1?userId=6ed81d5d-d15b-41f1-825c-8eff55a1a9fd
+
+### Get All Positions in a Portfolio (NEW!)
+GET http://localhost:3000/api/v1/nft/portfolio/2/positions?userId=6ed81d5d-d15b-41f1-825c-8eff55a1a9fd
+
+### Get All Positions in Portfolio 1 (if it exists)
+GET http://localhost:3000/api/v1/nft/portfolio/1/positions?userId=6ed81d5d-d15b-41f1-825c-8eff55a1a9fd
 
 # =======================
 # DEBUG/ADMIN ENDPOINTS
@@ -123,9 +129,9 @@ POST http://localhost:3000/api/v1/nft/create-investment
 Content-Type: application/json
 
 {
-  "userId": "test-user-123",
-  "portfolioTokenId": "1",
-  "owner": "ALGORAND_ADDRESS_HERE",
+  "userId": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
+  "portfolioTokenId": "2",
+  "owner": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
   "assetType": 1,
   "holdings": "200000000",
   "purchaseValueUsd": "10000000"
@@ -172,6 +178,12 @@ Content-Type: application/json
 # GET /api/v1/nft/position/1/holdings - Returns: { holdings: "100000000" }
 # GET /api/v1/nft/position/1/purchase-value - Returns: { purchaseValue: "5000000" }
 # GET /api/v1/nft/position/1 - Returns all position data in one call
+
+### Portfolio Token Getter Examples:
+# Replace "2" with actual portfolio token ID from minting response
+# GET /api/v1/nft/portfolio/2/positions - Returns: { portfolioTokenId: "2", positionCount: 3, positions: [...] }
+# GET /api/v1/nft/portfolio/position-portfolio/1 - Returns: { portfolioTokenId: "2" } (which portfolio position 1 belongs to)
+# GET /api/v1/nft/portfolio/position-count/2 - Returns: { positionCount: "3" }
 
 ### Prerequisites:
 # - Set POSITION_NFT_APP_ID and PORTFOLIO_NFT_APP_ID in .env

@@ -495,7 +495,7 @@ router.get('/portfolio/position-count/:portfolioTokenId', async (req, res) => {
 
 /**
  * Get which portfolio a position belongs to
- * GET /api/nft/portfolio/:appId/position-portfolio/:positionTokenId
+ * GET /api/nft/portfolio/position-portfolio/:positionTokenId
  */
 router.get('/portfolio/position-portfolio/:positionTokenId', async (req, res) => {
   try {
@@ -523,6 +523,40 @@ router.get('/portfolio/position-portfolio/:positionTokenId', async (req, res) =>
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to get position portfolio'
+    });
+  }
+});
+
+/**
+ * Get all positions that belong to a specific portfolio
+ * GET /api/nft/portfolio/:portfolioTokenId/positions
+ */
+router.get('/portfolio/:portfolioTokenId/positions', async (req, res) => {
+  try {
+    const { portfolioTokenId } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID query parameter is required'
+      });
+    }
+
+    const result = await nftContractService.getPortfolioPositions(
+      userId as string, 
+      BigInt(portfolioTokenId)
+    );
+
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Get portfolio positions error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get portfolio positions'
     });
   }
 });

@@ -635,6 +635,126 @@ export class NFTContractService {
     }
   }
 
+  /**
+   * Get all positions that belong to a specific portfolio
+   * Uses the new efficient contract method that stores position IDs directly
+   */
+  async getPortfolioPositions(userId: string, portfolioTokenId: bigint) {
+    try {
+      const { account, address } = await this.getUserSigningAccount(userId);
+      
+      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+      
+      // Get portfolio factory to fetch position IDs
+      const portfolioFactory = new CultivestPortfolioNftFactory({
+        defaultSender: address,
+        algorand: this.algorand,
+      });
+
+      const portfolioAppClient = portfolioFactory.getAppClientById({
+        appId: BigInt(this.PORTFOLIO_NFT_APP_ID)
+      });
+
+      // Get the packed position IDs from the contract (MUCH MORE EFFICIENT!)
+      const positionIdsResponse = await portfolioAppClient.send.getPortfolioPositionIds({
+        args: { portfolioTokenId }
+      });
+
+      const positionIdsBytes = positionIdsResponse.return;
+      
+      if (!positionIdsBytes || positionIdsBytes.length === 0) {
+        // Portfolio has no positions
+        return {
+          portfolioTokenId: portfolioTokenId.toString(),
+          positionCount: 0,
+          positions: [],
+          appId: this.PORTFOLIO_NFT_APP_ID
+        };
+      }
+
+      // Unpack the position IDs (each uint64 is 8 bytes)
+      const positionIds: bigint[] = [];
+      const positionIdsBuffer = Buffer.from(positionIdsBytes as any);
+      
+      for (let i = 0; i < positionIdsBuffer.length; i += 8) {
+        const positionIdBytes = positionIdsBuffer.subarray(i, i + 8);
+        const positionId = positionIdBytes.readBigUInt64BE(0);
+        positionIds.push(positionId);
+      }
+
+      // Get position factory to fetch position details
+      const positionFactory = new CultivestPositionNftFactory({
+        defaultSender: address,
+        algorand: this.algorand,
+      });
+
+      const positionAppClient = positionFactory.getAppClientById({
+        appId: BigInt(this.POSITION_NFT_APP_ID)
+      });
+
+      const positions = [];
+      
+      // Now fetch details for each position ID (much fewer calls!)
+      for (const tokenId of positionIds) {
+        try {
+          // Get all position details in parallel
+          const [owner, assetType, holdings, purchaseValue] = await Promise.all([
+            positionAppClient.send.getPositionOwner({ args: { tokenId } }),
+            positionAppClient.send.getPositionAssetType({ args: { tokenId } }),
+            positionAppClient.send.getPositionHoldings({ args: { tokenId } }),
+            positionAppClient.send.getPositionPurchaseValue({ args: { tokenId } })
+          ]);
+
+          // Convert owner bytes to address and Base64
+          let ownerAddress = '';
+          let ownerBase64 = '';
+          
+          if (owner.return) {
+            try {
+              ownerBase64 = Buffer.from(owner.return as any).toString('base64');
+              ownerAddress = algosdk.encodeAddress(new Uint8Array(owner.return as any));
+            } catch (error) {
+              console.error('Error converting owner bytes for position', tokenId, error);
+            }
+          }
+
+          const assetTypeNames = {
+            1: 'Bitcoin',
+            2: 'Algorand', 
+            3: 'USDC'
+          };
+
+          const assetTypeNum = Number(assetType.return || BigInt(0));
+
+          positions.push({
+            tokenId: tokenId.toString(),
+            owner: ownerAddress,
+            ownerBase64: ownerBase64,
+            assetType: assetTypeNum.toString(),
+            assetTypeName: assetTypeNames[assetTypeNum as keyof typeof assetTypeNames] || 'Unknown',
+            holdings: (holdings.return || BigInt(0)).toString(),
+            purchaseValue: (purchaseValue.return || BigInt(0)).toString(),
+            portfolioTokenId: portfolioTokenId.toString()
+          });
+        } catch (error) {
+          // Skip positions that cause errors (might be deleted or inaccessible)
+          console.log(`Skipping position ${tokenId} due to error:`, error);
+          continue;
+        }
+      }
+
+      return {
+        portfolioTokenId: portfolioTokenId.toString(),
+        positionCount: positions.length,
+        positions: positions,
+        appId: this.PORTFOLIO_NFT_APP_ID
+      };
+    } catch (error) {
+      console.error('Get portfolio positions error:', error);
+      throw error;
+    }
+  }
+
   // =======================
   // DEBUG/ADMIN METHODS
   // =======================
