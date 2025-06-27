@@ -152,6 +152,50 @@ Content-Type: application/json
 }
 
 # =======================
+# USER-CENTRIC INVESTMENT APIs (RECOMMENDED)
+# =======================
+
+### Create Investment (Auto-handles Portfolio + Position NFT)
+POST http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/invest
+Content-Type: application/json
+
+{
+  "algorandAddress": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
+  "assetType": 2,
+  "holdings": "200000000",
+  "purchaseValueUsd": "8000000",
+  "portfolioName": "My Bitcoin Stack"
+}
+
+### Get User's Investment Summary
+GET http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/investments
+
+### Get User's Specific Investment by Position Token ID
+GET http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/investments/1
+
+### Create Multiple Investments (Bitcoin, Algorand, USDC)
+POST http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/invest
+Content-Type: application/json
+
+{
+  "algorandAddress": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
+  "assetType": 2,
+  "holdings": "50000000000",
+  "purchaseValueUsd": "1000000"
+}
+
+###
+POST http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/invest
+Content-Type: application/json
+
+{
+  "algorandAddress": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
+  "assetType": 3,
+  "holdings": "250000",
+  "purchaseValueUsd": "250000"
+}
+
+# =======================
 # COMBINED OPERATIONS
 # =======================
 
