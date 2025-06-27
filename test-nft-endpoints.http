@@ -144,26 +144,39 @@ Content-Type: application/json
 }
 
 ### Update Portfolio Name
-PUT http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/portfolio/PORTFOLIO_UUID_HERE
+PUT http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/portfolio/68eaeb23-8bf3-4422-813c-0b6045ca1961
 Content-Type: application/json
 
 {
-  "customName": "My Bitcoin Stack"
+  "customName": "My Investment Portfolio2"
 }
 
 # =======================
-# USER-CENTRIC INVESTMENT APIs (RECOMMENDED)
+# UNIFIED USER INVESTMENT API (RECOMMENDED)
 # =======================
 
-### Create Investment (Auto-handles Portfolio + Position NFT)
+### Direct Investment Recording (NFT + Portfolio)
 POST http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/invest
 Content-Type: application/json
 
 {
   "algorandAddress": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
-  "assetType": 2,
-  "holdings": "200000000",
-  "purchaseValueUsd": "8000000",
+  "assetType": 1,
+  "holdings": "50000000",
+  "purchaseValueUsd": "2500000",
+  "portfolioName": "My Bitcoin Stack"
+}
+
+### Bitcoin Purchase with MoonPay (Investment Table + NFT + Payment)
+POST http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/invest
+Content-Type: application/json
+
+{
+  "algorandAddress": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
+  "assetType": 1,
+  "amountUSD": 100,
+  "useMoonPay": true,
+  "riskAccepted": true,
   "portfolioName": "My Bitcoin Stack"
 }
 
@@ -196,11 +209,23 @@ Content-Type: application/json
 }
 
 # =======================
-# COMBINED OPERATIONS
+# DEPRECATED APIs (Use Unified User Investment API Instead)
 # =======================
 
-### Create Investment with NFTs (Complete Flow)
-# This mints a position token and adds it to a portfolio
+### ⚠️ DEPRECATED: Bitcoin Investment API
+# Use /users/:userId/invest with useMoonPay: true instead
+POST http://localhost:3000/api/v1/investment/bitcoin/initiate
+Content-Type: application/json
+
+{
+  "userID": "6ed81d5d-d15b-41f1-825c-8eff55a1a9fd",
+  "amountUSD": 100,
+  "riskAccepted": true,
+  "investmentType": "market_buy"
+}
+
+### ⚠️ DEPRECATED: Direct NFT Creation
+# Use /users/:userId/invest instead
 POST http://localhost:3000/api/v1/nft/create-investment
 Content-Type: application/json
 

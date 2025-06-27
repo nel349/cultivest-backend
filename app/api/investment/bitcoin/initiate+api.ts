@@ -3,6 +3,8 @@ import { supabase } from '../../../../utils/supabase';
 import { moonPayService } from '../../../../utils/moonpay';
 import { verifyJWT } from '../../../../utils/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { userPortfolioService } from '../../../../services/user-portfolio.service';
+import { nftContractService } from '../../../../services/nft-contract.service';
 
 const router = express.Router();
 
@@ -15,6 +17,15 @@ interface BitcoinInvestmentRequest {
 
 router.post('/', async (req, res) => {
   try {
+    // DEPRECATION NOTICE
+    console.warn('⚠️  DEPRECATED: /investment/bitcoin/initiate is deprecated. Use /users/:userId/invest with useMoonPay: true instead.');
+    
+    // Add deprecation header
+    res.set('X-API-Deprecated', 'true');
+    res.set('X-API-Deprecated-Message', 'Use /users/:userId/invest with useMoonPay: true instead');
+    res.set('X-API-Deprecated-Date', '2025-06-27');
+    
+    // TODO: Remove this endpoint in future version
     const { userID, amountUSD, riskAccepted = false, investmentType = 'market_buy' }: BitcoinInvestmentRequest = req.body;
     // const authHeader = req.headers.authorization;
 
@@ -139,6 +150,68 @@ router.post('/', async (req, res) => {
       .update({ moonpay_url: moonpayUrl })
       .eq('investment_id', investmentId);
 
+    // Create NFT records for this investment
+    let nftDetails = null;
+    try {
+      console.log(`🎨 Creating NFT records for investment ${investmentId}`);
+      
+      // Get or create user's primary portfolio
+      let userPortfolio = await userPortfolioService.getUserPrimaryPortfolio(userID);
+      
+      if (!userPortfolio) {
+        console.log(`Creating primary portfolio for user ${userID}`);
+        
+        // Auto-create portfolio for user
+        const portfolioResult = await nftContractService.mintPortfolioToken(userID, {
+          owner: wallet.algorand_address,
+          level: 1,
+          metadataCid: 'QmDefaultBitcoinPortfolioMetadata'
+        });
+
+        if (portfolioResult.tokenId) {
+          // Store in database
+          userPortfolio = await userPortfolioService.storeUserPortfolio({
+            userId: userID,
+            portfolioTokenId: parseInt(portfolioResult.tokenId),
+            portfolioAppId: parseInt(portfolioResult.appId),
+            algorandAddress: wallet.algorand_address,
+            isPrimary: true,
+            customName: 'My Bitcoin Portfolio'
+          });
+          
+          console.log(`Created portfolio token ${portfolioResult.tokenId} for user ${userID}`);
+        }
+      }
+
+      // Mint position NFT for this Bitcoin investment
+      const positionResult = await nftContractService.mintPositionToken(userID, {
+        owner: wallet.algorand_address,
+        assetType: 1, // Bitcoin
+        holdings: BigInt(Math.floor(bitcoinCalculation.estimatedBTC * 100000000)), // Convert to satoshis
+        purchaseValueUsd: BigInt(amountUSD * 100) // Convert to cents
+      });
+
+      if (positionResult.tokenId && userPortfolio) {
+        // Add position to user's portfolio
+        await nftContractService.addPositionToPortfolio(userID, {
+          portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
+          positionTokenId: BigInt(positionResult.tokenId),
+          owner: wallet.algorand_address
+        });
+
+        console.log(`Added position ${positionResult.tokenId} to portfolio ${userPortfolio.portfolioTokenId}`);
+        
+        nftDetails = {
+          positionTokenId: positionResult.tokenId,
+          portfolioTokenId: userPortfolio.portfolioTokenId.toString(),
+          transactionId: positionResult.transactionId
+        };
+      }
+    } catch (nftError) {
+      console.error('NFT creation failed (investment still proceeding):', nftError);
+      // Don't fail the entire investment if NFT creation fails
+    }
+
     console.log(`✅ Bitcoin investment initiated: ${investmentId}`);
 
     return res.json({
@@ -161,10 +234,16 @@ router.post('/', async (req, res) => {
         custodyType: 'custodial'
       },
       moonpayUrl,
-      nextSteps: [
+      nft: nftDetails,
+      nextSteps: nftDetails ? [
         'Complete Bitcoin purchase via MoonPay',
         'Bitcoin will be deposited to your custodial wallet',
-        'Portfolio NFT will be created to track your investment',
+        `Position NFT #${nftDetails.positionTokenId} created to track your investment`,
+        'You can view your Bitcoin holdings and NFT in the dashboard'
+      ] : [
+        'Complete Bitcoin purchase via MoonPay',
+        'Bitcoin will be deposited to your custodial wallet',
+        'NFT creation pending - check back later',
         'You can view your Bitcoin holdings in the dashboard'
       ]
     });
