@@ -1,16 +1,12 @@
 import express from 'express';
-import algosdk from 'algosdk';
 import { verifyJWT } from '../../../utils/auth';
 import { supabase } from '../../../utils/supabase';
 
 const router = express.Router();
 
 // Algorand configuration
-const algodUrl = process.env.ALGORAND_ALGOD_URL || 'https://testnet-api.algonode.cloud';
-const algodToken = process.env.ALGORAND_ALGOD_TOKEN || '';
 const usdcAssetId = parseInt(process.env.USDC_ASSET_ID || '10458941'); // USDCa on testnet
 
-const algodClient = new algosdk.Algodv2(algodToken, algodUrl, algodToken ? '' : undefined);
 
 // Test faucet account (you would need to set this up with test USDCa)
 // For now, this is a placeholder - in real implementation you'd have a funded faucet account
@@ -135,6 +131,11 @@ router.post('/', async (req, res) => {
       recipientAddress: recipientAddress
     });
     */
+
+    return res.status(501).json({
+      success: false,
+      error: 'Faucet transfer not implemented. Uncomment and implement the transfer logic.'
+    });
 
   } catch (error) {
     console.error('Test USDCa sending error:', error);

@@ -6,9 +6,11 @@ import { supabase } from '../../../utils/supabase';
 const router = express.Router();
 
 // Initialize Algorand client
-const algodClient = new algosdk.Algodv2('', process.env.ALGORAND_ALGOD_URL || 'https://testnet-algorand.api.purestake.io/ps2', {
-  'X-API-Key': process.env.ALGORAND_ALGOD_TOKEN || ''
-});
+const algodClient = new algosdk.Algodv2(
+  process.env.ALGORAND_ALGOD_TOKEN || '',
+  process.env.ALGORAND_ALGOD_URL || 'https://testnet-algorand.api.purestake.io/ps2',
+  ''
+);
 
 interface WithdrawRequest {
   userID: string;
@@ -216,8 +218,8 @@ async function executeWithdrawal(wallet: any, amount: number, position: any) {
     const usdcAssetId = isTestnet ? 10458941 : 31566704;
 
     const withdrawalTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-      from: account.addr,
-      to: account.addr, // For testnet demo, keep in same wallet
+      sender: account.addr,
+      receiver: account.addr, // For testnet demo, keep in same wallet
       amount: Math.floor(amount * 1000000), // Convert to microUSDCa
       assetIndex: usdcAssetId,
       note: new TextEncoder().encode(`Cultivest withdrawal: ${amount} USDCa from position ${position.position_id}`),
@@ -228,16 +230,16 @@ async function executeWithdrawal(wallet: any, amount: number, position: any) {
     const signedTxn = withdrawalTxn.signTxn(account.sk);
 
     // Submit transaction
-    const { txId } = await algodClient.sendRawTransaction(signedTxn).do();
+    const { txid } = await algodClient.sendRawTransaction(signedTxn).do();
     
     // Wait for confirmation
-    await algosdk.waitForConfirmation(algodClient, txId, 4);
+    await algosdk.waitForConfirmation(algodClient, txid, 4);
 
-    console.log(`💸 Withdrawal transaction confirmed: ${txId}`);
+    console.log(`💸 Withdrawal transaction confirmed: ${txid}`);
 
     return {
       success: true,
-      txId: txId,
+      txId: txid,
       message: 'Withdrawal executed successfully'
     };
 

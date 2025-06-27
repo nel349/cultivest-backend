@@ -202,7 +202,7 @@ router.post('/:userId/portfolio', async (req, res) => {
     const isPrimary = !existingPortfolio; // First portfolio is primary
 
     // Mint portfolio NFT on blockchain
-    const mintResult = await nftContractService.mintPortfolioToken(userId, {
+    const mintResult = await nftContractService.mintPortfolioToken({
       owner: algorandAddress,
       level,
       metadataCid

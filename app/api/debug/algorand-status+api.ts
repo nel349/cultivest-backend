@@ -3,7 +3,7 @@ import { getAlgorandStatus } from '../../../utils/wallet';
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
     const status = await getAlgorandStatus();
     

@@ -4,7 +4,7 @@ import { fetchCryptoPrices, getCryptoPrice, getPriceCacheStatus, clearPriceCache
 const router = express.Router();
 
 // GET /api/v1/prices - Get all cryptocurrency prices
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
     const prices = await fetchCryptoPrices();
     const cacheStatus = getPriceCacheStatus();
@@ -87,7 +87,7 @@ router.get('/:coinId', async (req, res) => {
 });
 
 // POST /api/v1/prices/refresh - Force refresh price cache
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', async (_req, res) => {
   try {
     clearPriceCache();
     const prices = await fetchCryptoPrices();
@@ -109,7 +109,7 @@ router.post('/refresh', async (req, res) => {
 });
 
 // GET /api/v1/prices/cache/status - Get cache status
-router.get('/cache/status', (req, res) => {
+router.get('/cache/status', (_req, res) => {
   try {
     const cacheStatus = getPriceCacheStatus();
     

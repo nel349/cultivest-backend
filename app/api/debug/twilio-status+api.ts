@@ -3,7 +3,7 @@ import { getTwilioStatus, isTwilioConfigured } from '../../../utils/sms';
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
   const status = getTwilioStatus();
   
   return res.json({

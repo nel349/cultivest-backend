@@ -1,7 +1,6 @@
 import express from 'express';
 import { supabase } from '../../../../utils/supabase';
 import { moonPayService } from '../../../../utils/moonpay';
-import { verifyJWT } from '../../../../utils/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { userPortfolioService } from '../../../../services/user-portfolio.service';
 import { nftContractService } from '../../../../services/nft-contract.service';
@@ -26,7 +25,7 @@ router.post('/', async (req, res) => {
     res.set('X-API-Deprecated-Date', '2025-06-27');
     
     // TODO: Remove this endpoint in future version
-    const { userID, amountUSD, riskAccepted = false, investmentType = 'market_buy' }: BitcoinInvestmentRequest = req.body;
+    const { userID, amountUSD, riskAccepted = false }: BitcoinInvestmentRequest = req.body;
     // const authHeader = req.headers.authorization;
 
     // Validate request
@@ -103,7 +102,7 @@ router.post('/', async (req, res) => {
     // Create investment record
     const investmentId = uuidv4();
     
-    const { data: investment, error: investmentError } = await supabase
+    const { error: investmentError } = await supabase
       .from('investments')
       .insert({
         investment_id: investmentId,
@@ -162,7 +161,7 @@ router.post('/', async (req, res) => {
         console.log(`Creating primary portfolio for user ${userID}`);
         
         // Auto-create portfolio for user
-        const portfolioResult = await nftContractService.mintPortfolioToken(userID, {
+        const portfolioResult = await nftContractService.mintPortfolioToken({
           owner: wallet.algorand_address,
           level: 1,
           metadataCid: 'QmDefaultBitcoinPortfolioMetadata'
@@ -184,7 +183,7 @@ router.post('/', async (req, res) => {
       }
 
       // Mint position NFT for this Bitcoin investment
-      const positionResult = await nftContractService.mintPositionToken(userID, {
+      const positionResult = await nftContractService.mintPositionToken({
         owner: wallet.algorand_address,
         assetType: 1, // Bitcoin
         holdings: BigInt(Math.floor(bitcoinCalculation.estimatedBTC * 100000000)), // Convert to satoshis

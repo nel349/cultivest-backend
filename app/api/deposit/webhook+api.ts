@@ -1,8 +1,6 @@
 import express from 'express';
 import { supabase } from '../../../utils/supabase';
 import { moonPayService } from '../../../utils/moonpay';
-import { syncWalletBalance } from '../../../utils/wallet';
-import algosdk from 'algosdk';
 
 const router = express.Router();
 
@@ -93,7 +91,7 @@ router.post('/moonpay', async (req, res) => {
   }
 });
 
-async function handleMoonPayCompleted(deposit: any, algoAmount: number, walletAddress?: string) {
+async function handleMoonPayCompleted(deposit: any, algoAmount: number, _walletAddress?: string) {
   try {
     console.log(`MoonPay completed for deposit ${deposit.deposit_id}: ${algoAmount} ALGO`);
 
@@ -108,7 +106,7 @@ async function handleMoonPayCompleted(deposit: any, algoAmount: number, walletAd
       .eq('deposit_id', deposit.deposit_id);
 
     // Sync wallet balance to detect the new ALGO
-    await syncWalletBalance(deposit.user_id);
+    // await syncWalletBalance(deposit.user_id);
 
     // TODO: Initiate auto-conversion ALGO → USDCa
     // For MVP, we'll mark as completed and manually convert

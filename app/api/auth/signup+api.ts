@@ -1,6 +1,6 @@
 import express from 'express';
 import { supabase, handleDatabaseError, testDatabaseConnection } from '../../../utils/supabase';
-import { sendOTPSMS, getTwilioStatus } from '../../../utils/sms';
+import { sendOTPSMS } from '../../../utils/sms';
 
 const router = express.Router();
 

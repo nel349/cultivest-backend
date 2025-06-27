@@ -8,7 +8,7 @@ const router = express.Router();
  * Create or get a test user for smart contract testing
  * This is a development helper endpoint
  */
-router.post('/', async (req, res) => {
+router.post('/', async (_req, res) => {
   try {
     const testUser = {
       phoneNumber: '+15551234567',
@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
 });
 
 // Get existing test user info
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
     const { data: testUser, error } = await supabase
       .from('users')

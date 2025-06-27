@@ -1,7 +1,6 @@
 import express from 'express';
 import algosdk from 'algosdk';
 import CryptoJS from 'crypto-js';
-import { verifyJWT } from '../../../utils/auth';
 import { supabase } from '../../../utils/supabase';
 
 const router = express.Router();
@@ -21,7 +20,6 @@ const algodClient = new algosdk.Algodv2(algodToken, algodUrl, algodToken ? '' : 
 router.post('/', async (req, res) => {
   try {
     const { userID } = req.body;
-    const authHeader = req.headers.authorization;
 
     // Validate request
     if (!userID) {
@@ -95,8 +93,8 @@ router.post('/', async (req, res) => {
 
     // Create asset transfer transaction (opt-in)
     const optInTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-      from: account.addr,
-      to: account.addr, // Opt-in transaction sends to self
+      sender: account.addr,
+      receiver: account.addr, // Opt-in transaction sends to self
       amount: 0, // 0 amount for opt-in
       assetIndex: usdcAssetId,
       suggestedParams: suggestedParams
@@ -106,20 +104,20 @@ router.post('/', async (req, res) => {
     const signedTxn = optInTxn.signTxn(account.sk);
     const txnResult = await algodClient.sendRawTransaction(signedTxn).do();
     
-    console.log('✅ USDCa opt-in transaction submitted:', txnResult.txId);
+    console.log('✅ USDCa opt-in transaction submitted:', txnResult.txid);
 
     // Wait for confirmation
-    const confirmedTxn = await algosdk.waitForConfirmation(algodClient, txnResult.txId, 4);
+    const confirmedTxn = await algosdk.waitForConfirmation(algodClient, txnResult.txid, 4);
     
-    console.log('🎯 USDCa opt-in confirmed in round:', confirmedTxn['confirmed-round']);
+    console.log('🎯 USDCa opt-in confirmed in round:', confirmedTxn['confirmedRound']);
 
     return res.json({
       success: true,
       message: 'Successfully opted into USDCa asset',
       walletAddress: wallet.algorand_address,
       assetId: usdcAssetId,
-      transactionId: txnResult.txId,
-      confirmedRound: confirmedTxn['confirmed-round'],
+      transactionId: txnResult.txid,
+      confirmedRound: confirmedTxn['confirmedRound'],
       nextSteps: [
         'Your wallet can now receive USDCa tokens',
         'Get test USDCa from community faucets',

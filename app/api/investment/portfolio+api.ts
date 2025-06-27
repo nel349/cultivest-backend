@@ -1,6 +1,5 @@
 import express from 'express';
 import { supabase } from '../../../utils/supabase';
-import { verifyJWT } from '../../../utils/auth';
 import { moonPayService } from '../../../utils/moonpay';
 import { getUserWallet } from '../../../utils/wallet';
 

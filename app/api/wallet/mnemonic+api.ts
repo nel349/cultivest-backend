@@ -27,7 +27,13 @@ router.get('/', async (req, res) => {
     }
 
     // Decrypt the private key (which is actually the mnemonic)
-    const mnemonic = decryptPrivateKey(wallet.encryptedPrivateKey);
+    if (!wallet.encryptedAlgorandPrivateKey) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Encrypted private key not found for wallet' 
+      });
+    }
+    const mnemonic = decryptPrivateKey(wallet.encryptedAlgorandPrivateKey);
 
     console.log(`✅ Mnemonic retrieved successfully for user ${userId}`);
 

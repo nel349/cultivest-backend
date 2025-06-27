@@ -4,7 +4,7 @@ import { getBitcoinNetworkStatus, generateBitcoinWallet } from '../../../utils/b
 const router = express.Router();
 
 // GET /api/v1/debug/bitcoin-status
-router.get('/', async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
     console.log('🔍 Testing Bitcoin network status and balance API...');
     

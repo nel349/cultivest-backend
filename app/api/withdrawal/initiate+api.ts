@@ -3,7 +3,7 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { userID, amount, provider, bankDetails } = req.body;
+    const { userID, amount, provider } = req.body;
 
     if (!userID || !amount || !provider) {
       return res.status(400).json({ error: 'Missing required fields' });

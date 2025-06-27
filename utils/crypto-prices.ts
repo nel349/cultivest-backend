@@ -53,7 +53,7 @@ export const fetchCryptoPrices = async (): Promise<CryptoPrices> => {
       throw new Error(`CoinGecko API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     const prices: CryptoPrices = {
       bitcoin: data.bitcoin?.usd || 97000,      // Fallback to current estimate
