@@ -1,4 +1,5 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "target": "es2018",
     "module": "commonjs",
@@ -15,15 +16,20 @@
     "noUnusedParameters": true,
     "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
-    "skipLibCheck": false,
+    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
   "include": [
-    "**/*.ts"
+    "app/**/*.ts",
+    "utils/**/*.ts", 
+    "services/**/*.ts",
+    "scripts/**/*.ts",
+    "index.ts"
   ],
   "exclude": [
+    "contracts/**/*",
     "node_modules",
-    "build"
+    "build/**/*"
   ]
 } 

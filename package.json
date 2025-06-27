@@ -5,11 +5,18 @@
   "main": "build/index.js",
   "scripts": {
     "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "type-check:backend": "tsc --noEmit --project tsconfig.backend.json",
+    "type-check:watch": "tsc --noEmit --watch",
+    "lint": "tsc --noEmit && echo 'Type checking passed!'",
     "start": "node build/index.js",
     "dev": "ts-node-dev --respawn --transpile-only index.ts",
+    "dev:strict": "ts-node-dev --respawn index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:init": "ts-node scripts/simple-setup.ts",
-    "test:integration": "ts-node test-database-integration.ts"
+    "test:integration": "ts-node test-database-integration.ts",
+    "prestart": "npm run type-check",
+    "prebuild": "npm run type-check"
   },
   "keywords": [],
   "author": "",

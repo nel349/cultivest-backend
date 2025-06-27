@@ -23,7 +23,7 @@ const algodClient = new algosdk.Algodv2(algodToken, algodUrl, algodToken ? '' : 
 export interface WalletGenerationResult {
   success: boolean;
   walletId?: string;
-  bitcoinAddress?: string;
+  bitcoinAddress?: string | undefined;
   algorandAddress?: string;
   error?: string;
   transactionIds?: string[];
@@ -31,7 +31,7 @@ export interface WalletGenerationResult {
     tokenId: string;
     transactionId: string;
     appId: string;
-  };
+  } | undefined;
 }
 
 export interface WalletInfo {
@@ -80,6 +80,18 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
     const algorandPrivateKey = algosdk.secretKeyToMnemonic(algorandAccount.sk);
 
     console.log(`✅ Generated Algorand address: ${algorandAddress}`);
+
+    // Auto-fund the Algorand wallet in development/testnet
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        console.log(`💰 Auto-funding new Algorand wallet for development...`);
+        await fundAlgorandWallet(algorandAddress);
+        console.log(`✅ Algorand wallet funded successfully`);
+      } catch (fundingError) {
+        console.error('⚠️ Auto-funding failed (wallet still created):', fundingError);
+        // Don't fail wallet creation if funding fails
+      }
+    }
 
     // Encrypt both private keys before storing
     const encryptedBitcoinPrivateKey = bitcoinWallet.encryptedPrivateKey!;
@@ -191,7 +203,7 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
         if (portfolioRecord) {
                   portfolioNFT = {
           tokenId: portfolioResult.tokenId,
-          transactionId: portfolioResult.transactionId(),
+          transactionId: portfolioResult.transactionId,
           appId: portfolioResult.appId
         };
           console.log(`✅ Portfolio NFT created: Token ID ${portfolioResult.tokenId}`);
@@ -214,7 +226,7 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
     return {
       success: true,
       walletId: newWallet.wallet_id,
-      bitcoinAddress: bitcoinWallet.address, // Return Bitcoin address even if not stored yet
+      bitcoinAddress: bitcoinWallet.address || undefined, // Return Bitcoin address even if not stored yet
       algorandAddress: algorandAddress.toString(),
       transactionIds,
       portfolioNFT
@@ -226,6 +238,57 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       success: false,
       error: (error as Error).message
     };
+  }
+};
+
+/**
+ * Fund an Algorand wallet using AlgoKit's dispenser pattern
+ */
+const fundAlgorandWallet = async (algorandAddress: string): Promise<void> => {
+  try {
+    // Import AlgorandClient for proper dispenser access
+    const { AlgorandClient } = await import('@algorandfoundation/algokit-utils');
+    const { AlgoAmount } = await import('@algorandfoundation/algokit-utils/types/amount');
+    
+    // Configure Algorand client same as NFT service
+    const algodConfig = {
+      server: 'http://localhost',
+      port: 4001,
+      token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    };
+    
+    const indexerConfig = {
+      server: 'http://localhost',
+      port: 8980,
+      token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    };
+
+    const algorand = AlgorandClient.fromConfig({
+      algodConfig,
+      indexerConfig,
+    });
+    
+    // Get localnet dispenser account (same as NFT service)
+    const dispenserAccount = await algorand.account.localNetDispenser();
+    
+    console.log(`💰 Funding ${algorandAddress} from localnet dispenser ${dispenserAccount.addr}`);
+    
+    // Send 5 ALGO to the new wallet
+    const fundingAmount = 5000000; // 5 ALGO in microALGO
+    
+    const response = await algorand.send.payment({
+      sender: dispenserAccount.addr.toString(),
+      receiver: algorandAddress,
+      amount: AlgoAmount.MicroAlgos(fundingAmount),
+      signer: dispenserAccount.signer
+    });
+
+    console.log(`✅ Wallet funded successfully: ${fundingAmount / 1000000} ALGO sent to ${algorandAddress}`);
+    console.log(`💳 Transaction ID: ${response.txIds[0]}`);
+    
+  } catch (error) {
+    console.error('Auto-funding error:', error);
+    throw error;
   }
 };
 

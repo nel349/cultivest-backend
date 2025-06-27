@@ -139,8 +139,12 @@ router.post('/:userId/invest', async (req, res) => {
       console.log(`Creating primary portfolio for user ${userId}`);
       
       // Auto-create portfolio for user
+      // For MoonPay purchases, use the Algorand address from the wallet (database)
+      // For direct investments, use the provided algorandAddress from request
+      const portfolioOwnerAddress = isMoonPayPurchase && wallet ? wallet.algorand_address : algorandAddress;
+      
       const portfolioResult = await nftContractService.mintPortfolioToken(userId, {
-        owner: algorandAddress,
+        owner: portfolioOwnerAddress,
         level: 1, // Start at level 1
         metadataCid: 'QmDefaultPortfolioMetadata' // TODO: Generate proper metadata
       });
@@ -154,7 +158,7 @@ router.post('/:userId/invest', async (req, res) => {
         userId,
         portfolioTokenId: parseInt(portfolioResult.tokenId),
         portfolioAppId: parseInt(portfolioResult.appId),
-        algorandAddress,
+        algorandAddress: portfolioOwnerAddress,
         isPrimary: true,
         customName: portfolioName || 'My Portfolio'
       });
@@ -221,8 +225,12 @@ router.post('/:userId/invest', async (req, res) => {
     }
 
     // Step 3: Mint position NFT
+    // For MoonPay purchases, use the Algorand address from the wallet (database)
+    // For direct investments, use the provided algorandAddress from request
+    const ownerAddress = isMoonPayPurchase && wallet ? wallet.algorand_address : algorandAddress;
+    
     const positionResult = await nftContractService.mintPositionToken(userId, {
-      owner: algorandAddress,
+      owner: ownerAddress,
       assetType,
       holdings: BigInt(calculatedHoldings),
       purchaseValueUsd: BigInt(calculatedPurchaseValue)
@@ -238,7 +246,7 @@ router.post('/:userId/invest', async (req, res) => {
     const portfolioAddResult = await nftContractService.addPositionToPortfolio(userId, {
       portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
       positionTokenId: BigInt(positionResult.tokenId),
-      owner: algorandAddress
+      owner: ownerAddress
     });
 
     console.log(`Added position ${positionResult.tokenId} to portfolio ${userPortfolio.portfolioTokenId}`);
@@ -261,7 +269,7 @@ router.post('/:userId/invest', async (req, res) => {
           assetTypeName: assetTypeNames[assetType as keyof typeof assetTypeNames],
           holdings: calculatedHoldings.toString(),
           purchaseValueUsd: calculatedPurchaseValue.toString(),
-          owner: algorandAddress,
+          owner: ownerAddress,
           ...(investmentRecord && {
             investmentId: investmentRecord.investment_id,
             status: investmentRecord.status

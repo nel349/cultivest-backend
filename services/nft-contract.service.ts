@@ -1,5 +1,4 @@
 import { AlgorandClient } from '@algorandfoundation/algokit-utils';
-import { OnSchemaBreak, OnUpdate } from '@algorandfoundation/algokit-utils/types/app';
 import { CultivestPositionNftFactory } from '../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/position-nft/CultivestPositionNFTClient';
 import { CultivestPortfolioNftFactory } from '../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/portfolio-nft/CultivestPortfolioNFTClient';
 import { getUserWallet, decryptPrivateKey } from '../utils/wallet';
@@ -486,7 +485,7 @@ export class NFTContractService {
 
       return {
         tokenId: response.return?.toString(),
-        transactionId: response.transaction.txID,
+        transactionId: response.transaction.txID(),
         appId: this.PORTFOLIO_NFT_APP_ID
       };
     } catch (error) {
