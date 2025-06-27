@@ -142,6 +142,7 @@ router.post('/', async (req, res) => {
     let hasWallet = !!wallet;
 
     // Auto-create wallet for verified users
+    let portfolioNFT = null;
     if (!hasWallet) {
       console.log(`🔐 Creating wallet for newly verified user: ${userID}`);
       const walletResult = await generateWallet(userID);
@@ -149,10 +150,32 @@ router.post('/', async (req, res) => {
       if (walletResult.success) {
         wallet = await getUserWallet(userID);
         hasWallet = !!wallet;
+        portfolioNFT = walletResult.portfolioNFT || null;
         console.log(`✅ Wallet created successfully: ${wallet?.algorandAddress}`);
+        if (portfolioNFT) {
+          console.log(`✅ Portfolio NFT created: Token ID ${portfolioNFT.tokenId}`);
+        }
       } else {
         console.warn(`⚠️ Wallet creation failed: ${walletResult.error}`);
         // Continue anyway - wallet creation failure shouldn't block login
+      }
+    } else {
+      // Check if existing user has a Portfolio NFT
+      try {
+        const { userPortfolioService } = await import('../../../services/user-portfolio.service');
+        const existingPortfolio = await userPortfolioService.getUserPrimaryPortfolio(userID);
+        
+        if (existingPortfolio) {
+          portfolioNFT = {
+            tokenId: existingPortfolio.portfolioTokenId.toString(),
+            transactionId: 'existing',
+            appId: existingPortfolio.portfolioAppId.toString()
+          };
+          console.log(`✅ Existing Portfolio NFT found: Token ID ${portfolioNFT.tokenId}`);
+        }
+      } catch (error) {
+        console.error('Error checking existing portfolio NFT:', error);
+        // Continue without Portfolio NFT info
       }
     }
 
@@ -178,7 +201,8 @@ router.post('/', async (req, res) => {
         kycStatus: user.kyc_status,
         verified: true,
         walletCreated: hasWallet,
-        walletAddress: wallet?.algorandAddress || null
+        walletAddress: wallet?.algorandAddress || null,
+        portfolioNFT: portfolioNFT
       }
     });
 

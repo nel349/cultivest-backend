@@ -27,6 +27,11 @@ export interface WalletGenerationResult {
   algorandAddress?: string;
   error?: string;
   transactionIds?: string[];
+  portfolioNFT?: {
+    tokenId: string;
+    transactionId: string;
+    appId: string;
+  };
 }
 
 export interface WalletInfo {
@@ -71,7 +76,7 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
 
     // Generate Algorand wallet
     const algorandAccount = algosdk.generateAccount();
-    const algorandAddress = algorandAccount.addr;
+    const algorandAddress = algorandAccount.addr.toString();
     const algorandPrivateKey = algosdk.secretKeyToMnemonic(algorandAccount.sk);
 
     console.log(`✅ Generated Algorand address: ${algorandAddress}`);
@@ -96,6 +101,9 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       balance_usdca: 0,
       balance_algo: 0
     };
+
+    console.log('🔍 Exact wallet data being inserted:', JSON.stringify(walletData, null, 2));
+    console.log('🔍 Field lengths:', Object.entries(walletData).map(([k,v]) => `${k}: ${typeof v === 'string' ? v.length : typeof v}`));
 
     let { data: newWallet, error: walletError } = await supabase
       .from('wallets')
@@ -123,14 +131,14 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       const result = await supabase
         .from('wallets')
         .insert(walletData)
-        .select('wallet_id')
+        .select('wallet_id') 
         .single();
       
       newWallet = result.data;
       walletError = result.error;
     }
 
-    if (walletError) {
+    if (walletError || !newWallet) {
       console.error('❌ Failed to store wallet in database:', walletError);
       const dbError = handleDatabaseError(walletError);
       return {
@@ -153,6 +161,47 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
 
     const transactionIds: string[] = [];
 
+    // Create Portfolio NFT for the new user
+    let portfolioNFT = undefined;
+    try {
+      console.log(`🎨 Creating Portfolio NFT for new user: ${userId}`);
+      
+      // Dynamic import to avoid circular dependencies
+      const { nftContractService } = await import('../services/nft-contract.service');
+      const { userPortfolioService } = await import('../services/user-portfolio.service');
+      
+      // Mint portfolio NFT for the user
+      const portfolioResult = await nftContractService.mintPortfolioToken(userId, {
+        owner: algorandAddress.toString(),
+        level: 1,
+        metadataCid: 'QmDefaultOnboardingPortfolioMetadata'
+      });
+
+      if (portfolioResult.tokenId) {
+        // Store in database
+        const portfolioRecord = await userPortfolioService.storeUserPortfolio({
+          userId: userId,
+          portfolioTokenId: parseInt(portfolioResult.tokenId),
+          portfolioAppId: parseInt(portfolioResult.appId),
+          algorandAddress: algorandAddress.toString(),
+          isPrimary: true,
+          customName: 'My Portfolio'
+        });
+        
+        if (portfolioRecord) {
+                  portfolioNFT = {
+          tokenId: portfolioResult.tokenId,
+          transactionId: portfolioResult.transactionId(),
+          appId: portfolioResult.appId
+        };
+          console.log(`✅ Portfolio NFT created: Token ID ${portfolioResult.tokenId}`);
+        }
+      }
+    } catch (nftError) {
+      console.error('⚠️ Portfolio NFT creation failed (wallet still created):', nftError);
+      // Don't fail wallet creation if NFT creation fails
+    }
+
     console.log(`🎉 Multi-chain wallet creation completed successfully!`);
     
     if (bitcoinStored) {
@@ -166,8 +215,9 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       success: true,
       walletId: newWallet.wallet_id,
       bitcoinAddress: bitcoinWallet.address, // Return Bitcoin address even if not stored yet
-      algorandAddress: algorandAddress,
-      transactionIds
+      algorandAddress: algorandAddress.toString(),
+      transactionIds,
+      portfolioNFT
     };
 
   } catch (error) {
@@ -189,7 +239,7 @@ export const getOnChainBalance = async (algorandAddress: string) => {
     const accountInfo = await algodClient.accountInformation(algorandAddress).do();
     
     // Convert microAlgos to Algos (1 ALGO = 1,000,000 microAlgos)
-    const algoBalance = accountInfo.amount / 1000000;
+    const algoBalance = Number(accountInfo.amount) / 1000000;
     
     // Find USDCa asset balance
     let usdcaBalance = 0;
@@ -202,7 +252,7 @@ export const getOnChainBalance = async (algorandAddress: string) => {
       if (usdcaAsset) {
         isOptedIntoUSDCa = true;
         // USDCa has 6 decimal places
-        usdcaBalance = usdcaAsset.amount / 1000000;
+        usdcaBalance = Number(usdcaAsset.amount) / 1000000;
         console.log(`✅ Found USDCa asset ${usdcAssetId}: ${usdcaBalance} USDCa`);
       } else {
         console.log(`❌ USDCa asset ${usdcAssetId} not found in wallet assets`);
@@ -405,7 +455,7 @@ export const getAlgorandStatus = async () => {
     return {
       connected: true,
       network: network,
-      lastRound: status['last-round'],
+      lastRound: status.lastRound,
       algodUrl: algodUrl,
       usdcAssetId: usdcAssetId,
       hasToken: !!algodToken && algodToken !== 'your_algorand_api_key_here',
