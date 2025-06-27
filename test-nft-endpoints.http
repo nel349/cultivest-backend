@@ -120,6 +120,38 @@ Content-Type: application/json
 {}
 
 # =======================
+# USER-CENTRIC PORTFOLIO APIs (RECOMMENDED)
+# =======================
+
+### Get User's Portfolio Info (Discovery)
+GET http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/portfolio
+
+### Get User's Primary Portfolio with Full Details
+GET http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/portfolio/primary
+
+### Get User's Portfolio Positions (User-Friendly)
+GET http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/portfolio/positions
+
+### Create Portfolio for User (Mints NFT + Stores Mapping)
+POST http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/portfolio
+Content-Type: application/json
+
+{
+  "algorandAddress": "HXRUDXMK56MZE6ZZ3KGMMQFR2O7YKG4O6K3HPGFQXBLXXHEJTHY3VXGOTU",
+  "customName": "My Investment Portfolio",
+  "level": 1,
+  "metadataCid": "QmX54yZjWwsgxh85b78dkmvwfiBST7aT9J5ZiQp856x1jx"
+}
+
+### Update Portfolio Name
+PUT http://localhost:3000/api/v1/users/6ed81d5d-d15b-41f1-825c-8eff55a1a9fd/portfolio/PORTFOLIO_UUID_HERE
+Content-Type: application/json
+
+{
+  "customName": "My Bitcoin Stack"
+}
+
+# =======================
 # COMBINED OPERATIONS
 # =======================
 

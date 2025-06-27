@@ -42,6 +42,7 @@ import smartContractRoutes from './app/api/smart-contract+api';
 import testSmartContractRoutes from './app/api/test-smart-contract+api';
 import debugCreateTestUserRoutes from './app/api/debug/create-test-user+api';
 import nftRoutes from './app/api/nft+api';
+import userPortfolioRoutes from './app/api/users/portfolio+api';
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -127,6 +128,9 @@ apiRouter.use('/test-smart-contract', testSmartContractRoutes);
 
 // NFT APIs (Position and Portfolio NFTs)
 apiRouter.use('/nft', nftRoutes);
+
+// User Portfolio APIs (User-centric portfolio management)
+apiRouter.use('/users', userPortfolioRoutes);
 
 app.use('/api/v1', apiRouter);
 
