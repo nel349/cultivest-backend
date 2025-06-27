@@ -104,12 +104,12 @@ export class MoonPayService {
   /**
    * Calculate estimated Bitcoin amount after fees
    */
-  calculateEstimatedBitcoin(amountUSD: number): {
+  async calculateEstimatedBitcoin(amountUSD: number): Promise<{
     estimatedBTC: number;
     moonpayFee: number;
     networkFee: number;
     totalFees: number;
-  } {
+  }> {
     // MoonPay fee: ~3.5% for card payments
     const moonpayFee = amountUSD * 0.035;
     
@@ -119,9 +119,9 @@ export class MoonPayService {
     const totalFees = moonpayFee + networkFee;
     const netAmount = amountUSD - totalFees;
     
-    // Estimate BTC amount (will be updated with real price)
-    const estimatedBTCPrice = 45000; // Placeholder - should fetch real price
-    const estimatedBTC = netAmount / estimatedBTCPrice;
+    // Get current Bitcoin price
+    const currentBTCPrice = await this.getBitcoinPrice();
+    const estimatedBTC = netAmount / currentBTCPrice;
 
     return {
       estimatedBTC: Math.max(0, estimatedBTC),

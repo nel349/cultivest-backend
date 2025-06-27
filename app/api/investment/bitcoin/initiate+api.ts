@@ -96,7 +96,7 @@ router.post('/', async (req, res) => {
     }
 
     // Calculate Bitcoin investment details
-    const bitcoinCalculation = moonPayService.calculateEstimatedBitcoin(amountUSD);
+    const bitcoinCalculation = await moonPayService.calculateEstimatedBitcoin(amountUSD);
     const bitcoinPrice = await moonPayService.getBitcoinPrice();
 
     // Create investment record

@@ -121,7 +121,7 @@ router.post('/:userId/invest', async (req, res) => {
         throw new Error('Wallet is required for MoonPay purchases');
       }
       
-      bitcoinCalculation = moonPayService.calculateEstimatedBitcoin(amountUSD);
+      bitcoinCalculation = await moonPayService.calculateEstimatedBitcoin(amountUSD);
       bitcoinPrice = await moonPayService.getBitcoinPrice();
       
       if (!bitcoinCalculation) {
