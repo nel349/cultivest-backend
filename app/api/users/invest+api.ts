@@ -73,10 +73,10 @@ router.post('/:userId/invest', async (req, res) => {
       }
     }
 
-    if (![1, 2, 3].includes(assetType)) {
+    if (![1, 2, 3, 4].includes(assetType)) {
       return res.status(400).json({
         success: false,
-        error: 'Asset type must be 1 (Bitcoin), 2 (Algorand), or 3 (USDC)'
+        error: 'Asset type must be 1 (Bitcoin), 2 (Algorand), 3 (USDC), or 4 (Solana)'
       });
     }
 
@@ -178,7 +178,7 @@ router.post('/:userId/invest', async (req, res) => {
       investment_id: investmentId,
       user_id: userId,
       investment_type: isMoonPayPurchase ? 'bitcoin_purchase' : 'direct_investment',
-      target_asset: assetType === 1 ? 'BTC' : assetType === 2 ? 'ALGO' : 'USDC',
+      target_asset: assetType === 1 ? 'BTC' : assetType === 2 ? 'ALGO' : assetType === 3 ? 'USDC' : 'SOL',
       amount_usd: isMoonPayPurchase ? amountUSD : (calculatedPurchaseValue / 100),
       status: 'completed', // Always completed for invest endpoint
       risk_acknowledged: riskAccepted,

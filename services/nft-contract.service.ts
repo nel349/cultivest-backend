@@ -351,7 +351,8 @@ export class NFTContractService {
       const assetTypeNames = {
         1: 'Bitcoin',
         2: 'Algorand', 
-        3: 'USDC'
+        3: 'USDC',
+        4: 'Solana'
       };
 
       return {

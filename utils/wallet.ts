@@ -3,6 +3,7 @@ import CryptoJS from 'crypto-js';
 import dotenv from 'dotenv';
 import { supabase, handleDatabaseError } from './supabase';
 import { generateBitcoinWallet, getBitcoinBalance } from './bitcoin';
+import { generateSolanaWallet, getSolanaBalance } from './solana';
 
 // Load environment variables
 dotenv.config();
@@ -27,6 +28,7 @@ export interface WalletGenerationResult {
   walletId?: string;
   bitcoinAddress?: string | undefined;
   algorandAddress?: string;
+  solanaAddress?: string | undefined;
   error?: string;
   transactionIds?: string[];
   portfolioNFT?: {
@@ -41,17 +43,21 @@ export interface WalletInfo {
   userId: string;
   bitcoinAddress?: string;
   algorandAddress?: string;
+  solanaAddress?: string;
   encryptedBitcoinPrivateKey?: string;
   encryptedAlgorandPrivateKey?: string;
+  encryptedSolanaPrivateKey?: string;
   balance: {
     btc: number;
     algo: number;
     usdca: number;
+    sol: number;
   };
   onChainBalance?: {
     btc: number;
     algo: number;
     usdca: number;
+    sol: number;
     lastUpdated: string;
     isOptedIntoUSDCa?: boolean;
   };
@@ -59,11 +65,11 @@ export interface WalletInfo {
 }
 
 /**
- * Generate new Bitcoin + Algorand wallets with encrypted private key storage
+ * Generate new Bitcoin + Algorand + Solana wallets with encrypted private key storage
  */
 export const generateWallet = async (userId: string): Promise<WalletGenerationResult> => {
   try {
-    console.log(`🔐 Generating new Bitcoin + Algorand wallets for user: ${userId}`);
+    console.log(`🔐 Generating new Bitcoin + Algorand + Solana wallets for user: ${userId}`);
 
     // Generate Bitcoin wallet first (Bitcoin-first approach)
     const bitcoinWallet = generateBitcoinWallet();
@@ -83,6 +89,10 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
 
     console.log(`✅ Generated Algorand address: ${algorandAddress}`);
 
+    // Generate Solana wallet
+    const solanaWallet = generateSolanaWallet();
+    console.log(`✅ Generated Solana address: ${solanaWallet.address}`);
+
     // Auto-fund the Algorand wallet in development/testnet
     if (process.env.NODE_ENV !== 'production') {
       try {
@@ -95,12 +105,13 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       }
     }
 
-    // Encrypt both private keys before storing
+    // Encrypt all private keys before storing
     const encryptedBitcoinPrivateKey = bitcoinWallet.encryptedPrivateKey!;
     const encryptedAlgorandPrivateKey = CryptoJS.AES.encrypt(algorandPrivateKey, encryptionKey).toString();
+    const encryptedSolanaPrivateKey = solanaWallet.encryptedPrivateKey;
 
-    // Try to store with Bitcoin fields first, fallback to Algorand-only if columns don't exist
-    console.log('🔍 Attempting to store Bitcoin + Algorand wallet...');
+    // Try to store with all blockchain fields first, fallback if columns don't exist
+    console.log('🔍 Attempting to store Bitcoin + Algorand + Solana wallet...');
     
     let walletData: any = {
       user_id: userId,
@@ -109,11 +120,14 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       bitcoin_address: bitcoinWallet.address,
       encrypted_bitcoin_private_key: encryptedBitcoinPrivateKey,
       encrypted_algorand_private_key: encryptedAlgorandPrivateKey,
+      solana_address: solanaWallet.address,
+      encrypted_solana_private_key: encryptedSolanaPrivateKey,
       blockchain: 'multi-chain',
       asset_id: usdcAssetId,
       balance_btc: 0,
       balance_usdca: 0,
-      balance_algo: 0
+      balance_algo: 0,
+      balance_sol: 0
     };
 
     console.log('🔍 Exact wallet data being inserted:', JSON.stringify(walletData, null, 2));
@@ -125,28 +139,61 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       .select('wallet_id')
       .single();
 
-    // If Bitcoin columns don't exist, fallback to Algorand-only
+    // If newer columns don't exist, fallback to basic wallet storage
     if (walletError && (
       walletError.message.includes('bitcoin_address') ||
       walletError.message.includes('encrypted_bitcoin_private_key') ||
-      walletError.message.includes('balance_btc')
+      walletError.message.includes('balance_btc') ||
+      walletError.message.includes('solana_address') ||
+      walletError.message.includes('encrypted_solana_private_key') ||
+      walletError.message.includes('balance_sol')
     )) {
-      console.log('💡 Bitcoin columns not available, storing Algorand wallet only');
+      console.log('💡 Multi-chain columns not available, trying basic Bitcoin + Algorand...');
       
+      // Try Bitcoin + Algorand first
       walletData = {
         user_id: userId,
         algorand_address: algorandAddress,
         encrypted_private_key: encryptedAlgorandPrivateKey,
+        bitcoin_address: bitcoinWallet.address,
+        encrypted_bitcoin_private_key: encryptedBitcoinPrivateKey,
+        encrypted_algorand_private_key: encryptedAlgorandPrivateKey,
+        blockchain: 'multi-chain',
         asset_id: usdcAssetId,
+        balance_btc: 0,
         balance_usdca: 0,
         balance_algo: 0
       };
 
-      const result = await supabase
+      let result = await supabase
         .from('wallets')
         .insert(walletData)
         .select('wallet_id') 
         .single();
+      
+      // If Bitcoin columns still don't work, fallback to Algorand-only
+      if (result.error && (
+        result.error.message.includes('bitcoin_address') ||
+        result.error.message.includes('encrypted_bitcoin_private_key') ||
+        result.error.message.includes('balance_btc')
+      )) {
+        console.log('💡 Bitcoin columns not available, storing Algorand wallet only');
+        
+        walletData = {
+          user_id: userId,
+          algorand_address: algorandAddress,
+          encrypted_private_key: encryptedAlgorandPrivateKey,
+          asset_id: usdcAssetId,
+          balance_usdca: 0,
+          balance_algo: 0
+        };
+
+        result = await supabase
+          .from('wallets')
+          .insert(walletData)
+          .select('wallet_id') 
+          .single();
+      }
       
       newWallet = result.data;
       walletError = result.error;
@@ -162,15 +209,26 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
     }
 
     const bitcoinStored = walletData.bitcoin_address === bitcoinWallet.address;
+    const solanaStored = walletData.solana_address === solanaWallet.address;
     
-    if (bitcoinStored) {
+    if (bitcoinStored && solanaStored) {
+      console.log(`✅ Bitcoin + Algorand + Solana wallet stored in database with ID: ${newWallet.wallet_id}`);
+      console.log(`🪙 Bitcoin address: ${bitcoinWallet.address} (STORED)`);
+      console.log(`🔷 Algorand address: ${algorandAddress} (STORED)`);
+      console.log(`🟣 Solana address: ${solanaWallet.address} (STORED)`);
+      console.log(`🔐 All private keys: ENCRYPTED and STORED`);
+    } else if (bitcoinStored) {
       console.log(`✅ Bitcoin + Algorand wallet stored in database with ID: ${newWallet.wallet_id}`);
-      console.log(`🪙 Bitcoin address: ${bitcoinWallet.address} (STORED in database)`);
-      console.log(`🔐 Bitcoin private key: ENCRYPTED and STORED`);
+      console.log(`🪙 Bitcoin address: ${bitcoinWallet.address} (STORED)`);
+      console.log(`🔷 Algorand address: ${algorandAddress} (STORED)`);
+      console.log(`🟣 Solana address: ${solanaWallet.address} (generated but NOT stored - migration needed)`);
+      console.log(`🔐 Bitcoin + Algorand keys: ENCRYPTED and STORED`);
     } else {
       console.log(`✅ Algorand wallet stored in database with ID: ${newWallet.wallet_id}`);
+      console.log(`🔷 Algorand address: ${algorandAddress} (STORED)`);
       console.log(`🪙 Bitcoin address: ${bitcoinWallet.address} (generated but NOT stored - migration needed)`);
-      console.log(`🔐 Bitcoin private key: ENCRYPTED but NOT stored - migration needed`);
+      console.log(`🟣 Solana address: ${solanaWallet.address} (generated but NOT stored - migration needed)`);
+      console.log(`🔐 Algorand key: ENCRYPTED and STORED`);
     }
 
     const transactionIds: string[] = [];
@@ -218,11 +276,14 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
 
     console.log(`🎉 Multi-chain wallet creation completed successfully!`);
     
-    if (bitcoinStored) {
-      console.log(`🎯 Status: Full Bitcoin + Algorand support active`);
+    if (bitcoinStored && solanaStored) {
+      console.log(`🎯 Status: Full Bitcoin + Algorand + Solana support active`);
+    } else if (bitcoinStored) {
+      console.log(`📝 Status: Bitcoin + Algorand stored, Solana functional but not persisted`);
+      console.log(`💡 Run add-solana-support.sql to enable Solana storage`);
     } else {
-      console.log(`📝 Status: Algorand stored, Bitcoin functional but not persisted`);
-      console.log(`💡 Run bitcoin-migration.sql to enable Bitcoin storage`);
+      console.log(`📝 Status: Algorand stored, Bitcoin + Solana functional but not persisted`);
+      console.log(`💡 Run bitcoin-migration.sql and add-solana-support.sql to enable full multi-chain storage`);
     }
 
     return {
@@ -230,6 +291,7 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
       walletId: newWallet.wallet_id,
       bitcoinAddress: bitcoinWallet.address || undefined, // Return Bitcoin address even if not stored yet
       algorandAddress: algorandAddress.toString(),
+      solanaAddress: solanaWallet.address || undefined, // Return Solana address even if not stored yet
       transactionIds,
       portfolioNFT
     };
@@ -364,12 +426,15 @@ export const getUserWallet = async (
       userId: wallet.user_id,
       bitcoinAddress: wallet.bitcoin_address || undefined, // May not exist in old schema
       algorandAddress: wallet.algorand_address,
+      solanaAddress: wallet.solana_address || undefined, // May not exist in old schema
       encryptedBitcoinPrivateKey: wallet.encrypted_bitcoin_private_key || undefined, // May not exist in old schema
       encryptedAlgorandPrivateKey: wallet.encrypted_algorand_private_key || wallet.encrypted_private_key, // Backward compatibility
+      encryptedSolanaPrivateKey: wallet.encrypted_solana_private_key || undefined, // May not exist in old schema
       balance: {
         btc: wallet.balance_btc || 0, // May not exist in old schema
         algo: wallet.balance_algo || 0,
-        usdca: wallet.balance_usdca || 0
+        usdca: wallet.balance_usdca || 0,
+        sol: wallet.balance_sol || 0 // May not exist in old schema
       },
       createdAt: wallet.created_at
     };
@@ -379,6 +444,7 @@ export const getUserWallet = async (
       let btcBalance = 0;
       let algoBalance = 0;
       let usdcaBalance = 0;
+      let solBalance = 0;
       let isOptedIntoUSDCa = false;
 
       // Fetch Bitcoin balance if address exists (may not exist in old schema)
@@ -398,10 +464,18 @@ export const getUserWallet = async (
         }
       }
 
+      // Fetch Solana balance if address exists (may not exist in old schema)
+      if (wallet.solana_address) {
+        solBalance = await getSolanaBalance(wallet.solana_address);
+      } else {
+        console.log(`💡 Solana address not found for user ${userId} - database migration needed`);
+      }
+
       walletInfo.onChainBalance = {
         btc: btcBalance,
         algo: algoBalance,
         usdca: usdcaBalance,
+        sol: solBalance,
         lastUpdated: new Date().toISOString(),
         isOptedIntoUSDCa
       };
@@ -410,16 +484,19 @@ export const getUserWallet = async (
       const currentBtc = walletInfo.balance?.btc || 0;
       const currentAlgo = walletInfo.balance?.algo || 0;
       const currentUsdca = walletInfo.balance?.usdca || 0;
+      const currentSol = walletInfo.balance?.sol || 0;
       
       const btcChanged = Math.abs(btcBalance - currentBtc) > 0.00001; // Bitcoin precision
       const algoChanged = Math.abs(algoBalance - currentAlgo) > 0.001;
       const usdcaChanged = Math.abs(usdcaBalance - currentUsdca) > 0.001;
+      const solChanged = Math.abs(solBalance - currentSol) > 0.000001; // Solana precision
       
-      if (btcChanged || algoChanged || usdcaChanged) {
+      if (btcChanged || algoChanged || usdcaChanged || solChanged) {
         console.log(`🔄 Syncing multi-chain database balances for user ${userId}`);
         console.log(`  BTC: ${currentBtc} → ${btcBalance}`);
         console.log(`  ALGO: ${currentAlgo} → ${algoBalance}`);
         console.log(`  USDCa: ${currentUsdca} → ${usdcaBalance}`);
+        console.log(`  SOL: ${currentSol} → ${solBalance}`);
         
         // Only update columns that exist in current schema
         const updateFields: any = {
@@ -431,6 +508,11 @@ export const getUserWallet = async (
         // Only add Bitcoin balance if column exists (after migration)
         if (wallet.balance_btc !== undefined) {
           updateFields.balance_btc = btcBalance;
+        }
+
+        // Only add Solana balance if column exists (after migration)
+        if (wallet.balance_sol !== undefined) {
+          updateFields.balance_sol = solBalance;
         }
 
         const { error: updateError } = await supabase
@@ -448,6 +530,7 @@ export const getUserWallet = async (
         walletInfo.balance.btc = btcBalance;
         walletInfo.balance.algo = algoBalance;
         walletInfo.balance.usdca = usdcaBalance;
+        walletInfo.balance.sol = solBalance;
       }
     }
 

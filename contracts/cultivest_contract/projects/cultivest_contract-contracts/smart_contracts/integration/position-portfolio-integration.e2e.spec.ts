@@ -49,11 +49,19 @@ describe('Position + Portfolio NFT Integration Tests', () => {
     return { portfolioClient: appClient }
   }
 
-  const fundContract = async (client: CultivestPortfolioNftClient, sender: Address) => {
+  const fundPortfolioContract = async (client: CultivestPortfolioNftClient, sender: Address) => {
     await localnet.algorand.send.payment({
       sender: sender.toString(),
       receiver: client.appAddress.toString(),
       amount: (1).algo()
+    })
+  }
+
+  const fundPositionContract = async (client: CultivestPositionNftClient, sender: Address) => {
+    await localnet.algorand.send.payment({
+      sender: sender.toString(),
+      receiver: client.appAddress.toString(),
+      amount: (5).algo() // 5 ALGO for box storage like in working tests
     })
   }
 
@@ -64,8 +72,9 @@ describe('Position + Portfolio NFT Integration Tests', () => {
     const { positionClient } = await deployPositionNFT(testAccount)
     const { portfolioClient } = await deployPortfolioNFT(testAccount)
     
-    // Fund portfolio contract for box storage
-    await fundContract(portfolioClient, testAccount)
+    // Fund both contracts for box storage
+    await fundPositionContract(positionClient, testAccount)
+    await fundPortfolioContract(portfolioClient, testAccount)
 
     console.log('Position NFT App ID:', positionClient.appId.toString())
     console.log('Portfolio NFT App ID:', portfolioClient.appId.toString())
@@ -130,8 +139,9 @@ describe('Position + Portfolio NFT Integration Tests', () => {
     const { positionClient } = await deployPositionNFT(testAccount)
     const { portfolioClient } = await deployPortfolioNFT(testAccount)
     
-    // Fund portfolio contract
-    await fundContract(portfolioClient, testAccount)
+    // Fund both contracts
+    await fundPositionContract(positionClient, testAccount)
+    await fundPortfolioContract(portfolioClient, testAccount)
 
     // Create portfolio first
     const portfolioResult = await portfolioClient.send.mintPortfolio({
@@ -193,7 +203,8 @@ describe('Position + Portfolio NFT Integration Tests', () => {
     // Setup: Deploy contracts, create portfolio with 2 positions
     const { positionClient } = await deployPositionNFT(testAccount)
     const { portfolioClient } = await deployPortfolioNFT(testAccount)
-    await fundContract(portfolioClient, testAccount)
+    await fundPositionContract(positionClient, testAccount)
+    await fundPortfolioContract(portfolioClient, testAccount)
 
     // Create portfolio
     const portfolioResult = await portfolioClient.send.mintPortfolio({
@@ -271,7 +282,8 @@ describe('Position + Portfolio NFT Integration Tests', () => {
     
     const { positionClient } = await deployPositionNFT(testAccount)
     const { portfolioClient } = await deployPortfolioNFT(testAccount)
-    await fundContract(portfolioClient, testAccount)
+    await fundPositionContract(positionClient, testAccount)
+    await fundPortfolioContract(portfolioClient, testAccount)
 
     // Create 2 portfolios
     const portfolio1 = await portfolioClient.send.mintPortfolio({
