@@ -1,0 +1,66 @@
+# MoonPay Investment Webhook Tests
+# Test the automatic investment recording and NFT creation webhook
+
+### Test MoonPay Investment Completion Webhook
+POST http://localhost:3000/api/v1/investment/webhook/moonpay
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_123456789",
+    "status": "completed",
+    "cryptoAmount": 0.00123456,
+    "cryptoCurrency": "BTC",
+    "baseCurrencyAmount": 50.00,
+    "baseCurrency": "USD",
+    "walletAddress": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    "externalTransactionId": "cultivest_btc_investment-uuid-here",
+    "feeAmount": 1.75,
+    "networkFeeAmount": 0.25
+  }
+}
+
+### Test MoonPay Investment Failed Webhook
+POST http://localhost:3000/api/v1/investment/webhook/moonpay
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_987654321",
+    "status": "failed",
+    "externalTransactionId": "cultivest_btc_investment-uuid-here",
+    "failureReason": "Card declined"
+  }
+}
+
+### Test MoonPay Investment Cancelled Webhook
+POST http://localhost:3000/api/v1/investment/webhook/moonpay
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_555666777",
+    "status": "cancelled",
+    "externalTransactionId": "cultivest_btc_investment-uuid-here"
+  }
+}
+
+### Test MoonPay Investment Pending Webhook
+POST http://localhost:3000/api/v1/investment/webhook/moonpay
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_888999000",
+    "status": "waitingPayment",
+    "externalTransactionId": "cultivest_btc_investment-uuid-here"
+  }
+}

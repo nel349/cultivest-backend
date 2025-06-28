@@ -1,4 +1,4 @@
-  import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helloRoutes from './app/api/hello+api';
@@ -7,9 +7,6 @@ import signupRoutes from './app/api/auth/signup+api';
 import verifyOtpRoutes from './app/api/auth/verify-otp+api';
 import withdrawalInitiateRoutes from './app/api/withdrawal/initiate+api';
 import withdrawalWebhookRoutes from './app/api/withdrawal/webhook+api';
-import investmentPositionsRoutes from './app/api/investment/positions+api';
-import investmentStatusRoutes from './app/api/investment/status+api';
-import investmentWithdrawRoutes from './app/api/investment/withdraw+api';
 import notificationsSendDailyYieldRoutes from './app/api/notifications/send-daily-yield+api';
 import transactionReceiptSendRoutes from './app/api/transaction/receipt/send+api';
 import userProfileRoutes from './app/api/user/profile+api';
@@ -26,18 +23,15 @@ import debugTwilioStatusRoutes from './app/api/debug/twilio-status+api';
 import debugAlgorandStatusRoutes from './app/api/debug/algorand-status+api';
 import debugBitcoinStatusRoutes from './app/api/debug/bitcoin-status+api';
 import debugSolanaStatusRoutes from './app/api/debug/solana-status+api';
-import debugWalletRawRoutes from './app/api/debug/wallet-raw+api';
 import walletCreateRoutes from './app/api/wallet/create+api';
 import walletMnemonicRoutes from './app/api/wallet/mnemonic+api';
 import moonpaySignUrlRoutes from './app/api/moonpay/sign-url+api';
-import optInUsdcaRoutes from './app/api/debug/opt-in-usdca+api';
-import bitcoinInvestmentInitiateRoutes from './app/api/investment/bitcoin/initiate+api';
-import bitcoinInvestmentPositionsRoutes from './app/api/investment/bitcoin/positions+api';
-import investmentPortfolioRoutes from './app/api/investment/portfolio+api';
 import pricesRoutes from './app/api/prices+api';
 import smartContractRoutes from './app/api/smart-contract+api';
 import testSmartContractRoutes from './app/api/test-smart-contract+api';
 import debugCreateTestUserRoutes from './app/api/debug/create-test-user+api';
+import optInUsdcaRoutes from './app/api/debug/opt-in-usdca+api';
+import fundTestnetRoutes from './app/api/debug/fund-testnet+api';
 import nftRoutes from './app/api/nft+api';
 import userPortfolioRoutes from './app/api/users/portfolio+api';
 import userInvestmentRoutes from './app/api/users/invest+api';
@@ -50,6 +44,27 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors()); // Enable CORS for all origins (adjust in production)
 app.use(express.json()); // Enable JSON body parsing
+
+// Custom request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  const method = req.method;
+  const url = req.url;
+  const userAgent = req.get('User-Agent') || 'Unknown';
+  
+  console.log(`🌐 [${timestamp}] ${method} ${url} - ${userAgent}`);
+  
+  // Log response time
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const statusCode = res.statusCode;
+    const statusEmoji = statusCode >= 400 ? '❌' : statusCode >= 300 ? '⚠️' : '✅';
+    console.log(`${statusEmoji} [${timestamp}] ${method} ${url} - ${statusCode} (${duration}ms)`);
+  });
+  
+  next();
+});
 
 // Initialize Supabase client
 // const supabaseUrl = process.env.SUPABASE_URL;
@@ -83,9 +98,6 @@ apiRouter.use('/auth/signup', signupRoutes);
 apiRouter.use('/auth/verify-otp', verifyOtpRoutes);
 apiRouter.use('/withdrawal/initiate', withdrawalInitiateRoutes);
 apiRouter.use('/withdrawal/webhook', withdrawalWebhookRoutes);
-apiRouter.use('/investment/positions', investmentPositionsRoutes);
-apiRouter.use('/investment/status', investmentStatusRoutes);
-apiRouter.use('/investment/withdraw', investmentWithdrawRoutes);
 apiRouter.use('/notifications/send-daily-yield', notificationsSendDailyYieldRoutes);
 apiRouter.use('/transaction/receipt/send', transactionReceiptSendRoutes);
 apiRouter.use('/user/profile', userProfileRoutes);
@@ -103,21 +115,14 @@ apiRouter.use('/debug/twilio-status', debugTwilioStatusRoutes);
 apiRouter.use('/debug/algorand-status', debugAlgorandStatusRoutes);
 apiRouter.use('/debug/bitcoin-status', debugBitcoinStatusRoutes);
 apiRouter.use('/debug/solana-status', debugSolanaStatusRoutes);
-apiRouter.use('/debug/wallet-raw', debugWalletRawRoutes);
 apiRouter.use('/debug/create-test-user', debugCreateTestUserRoutes);
+apiRouter.use('/debug/opt-in-usdca', optInUsdcaRoutes);
+apiRouter.use('/debug/fund-testnet', fundTestnetRoutes);
 apiRouter.use('/wallet/create', walletCreateRoutes);
 apiRouter.use('/moonpay/sign-url', moonpaySignUrlRoutes);
 
-// Bitcoin Investment APIs
-apiRouter.use('/investment/bitcoin/initiate', bitcoinInvestmentInitiateRoutes);
-apiRouter.use('/investment/bitcoin/positions', bitcoinInvestmentPositionsRoutes);
-apiRouter.use('/investment/portfolio', investmentPortfolioRoutes);
-
 // Cryptocurrency Prices API
 apiRouter.use('/prices', pricesRoutes);
-
-// opt in usdca
-apiRouter.use('/debug/opt-in-usdca', optInUsdcaRoutes);
 
 // Smart Contract APIs
 apiRouter.use('/smart-contract', smartContractRoutes);

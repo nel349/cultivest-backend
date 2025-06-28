@@ -9,26 +9,13 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    // Mock user profile data
-    const mockProfile = {
-      userID,
-      name: 'Sarah Johnson',
-      phoneNumber: '+1234567890',
-      country: 'US',
-      email: 'sarah.johnson@email.com',
-      kycStatus: 'approved',
-      currentBalanceUSDCa: 5.00,
-      dailyYieldAccumulated: 0.003,
-      moneyTreeLeaves: 5,
-      totalWorkouts: 124,
-      daysActive: 89,
-      achievements: 12,
-      joinedAt: '2024-01-15T00:00:00Z',
-    };
-
-    return res.json({
-      success: true,
-      profile: mockProfile,
+    // MOCK ENDPOINT - Returns hardcoded data
+    // TODO: Implement real user profile fetching from database
+    return res.status(501).json({
+      success: false,
+      error: 'User profile endpoint not implemented',
+      message: 'This endpoint returns mock data and needs real implementation',
+      implementation_needed: 'Connect to Supabase users table and fetch real profile data'
     });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

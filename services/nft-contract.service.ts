@@ -504,18 +504,34 @@ export class NFTContractService {
     }
   ) {
     try {
-      const { account, address } = await this.getUserSigningAccount(userId);
+      // Use authorized minter account to sign the transaction (like mintPositionToken)
+      const minterAccount = this.getAuthorizedMinterAccount();
       
-      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(account));
+      this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(minterAccount));
       
       const factory = new CultivestPortfolioNftFactory({
-        defaultSender: address,
+        defaultSender: minterAccount.addr,
         algorand: this.algorand,
       });
 
       const appClient = factory.getAppClientById({
         appId: BigInt(this.PORTFOLIO_NFT_APP_ID)
       });
+
+      // Debug: Check contract state before attempting to add position
+      console.log(`🔍 Contract Debug - Checking portfolio contract state:`);
+      const contractStats = await appClient.send.getContractStats({ args: {} });
+      console.log(`- Current nextTokenId: ${contractStats.return![0]}`);
+      console.log(`- Current totalSupply: ${contractStats.return![1]}`);
+      console.log(`- Portfolio Token ID to use: ${params.portfolioTokenId}`);
+      console.log(`- Position Token ID to add: ${params.positionTokenId}`);
+      console.log(`- Contract expects: portfolioTokenId < nextTokenId (${params.portfolioTokenId} < ${contractStats.return![0]})`);
+      
+      // Check if portfolio exists
+      const portfolioExists = await appClient.send.portfolioExists({ 
+        args: { portfolioTokenId: params.portfolioTokenId } 
+      });
+      console.log(`- Portfolio ${params.portfolioTokenId} exists: ${portfolioExists.return}`);
 
       const response = await appClient.send.addPositionToPortfolio({
         args: {
@@ -524,6 +540,8 @@ export class NFTContractService {
           owner: params.owner
         }
       });
+
+      console.log(`Position ${params.positionTokenId} added to portfolio ${params.portfolioTokenId} for owner ${params.owner} by minter ${minterAccount.addr}`);
 
       return {
         transactionId: response.transaction.txID,

@@ -3,44 +3,13 @@ const router = express.Router();
 
 router.get('/', async (_req, res) => {
   try {
-    // Mock educational content
-    const mockContent = [
-      {
-        contentID: 'usdca_intro',
-        type: 'video',
-        title: 'Understanding USDCa and GENIUS Act Safety',
-        url: 'https://example.com/videos/usdca-intro.mp4',
-        duration: 30,
-        description: 'Learn about USDCa stablecoin and how the GENIUS Act ensures transparency',
-      },
-      {
-        contentID: 'safety_quiz',
-        type: 'quiz',
-        title: 'Stablecoin Safety Quiz',
-        quizQuestions: [
-          {
-            question: 'What does USDCa stand for?',
-            options: ['USD Coin Algorithm', 'USD Coin Algorand', 'Universal Stable Digital Currency'],
-            correctAnswer: 1,
-          },
-          {
-            question: 'What is the typical APY for USDCa yields?',
-            options: ['1-2%', '2-3%', '5-10%'],
-            correctAnswer: 1,
-          },
-          {
-            question: 'What does the GENIUS Act ensure?',
-            options: ['Higher yields', 'Stablecoin transparency', 'Lower fees'],
-            correctAnswer: 1,
-          },
-        ],
-        unlocksBadgeID: 'safe_saver',
-      },
-    ];
-
-    return res.json({
-      success: true,
-      content: mockContent,
+    // MOCK ENDPOINT - Returns hardcoded educational content
+    // TODO: Implement real educational content management system
+    return res.status(501).json({
+      success: false,
+      error: 'Educational content endpoint not implemented',
+      message: 'This endpoint returns mock educational content and needs real implementation',
+      implementation_needed: 'Create educational content management system with database storage'
     });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

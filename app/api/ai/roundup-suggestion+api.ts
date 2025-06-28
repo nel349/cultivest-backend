@@ -3,37 +3,19 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { userID, transactionAmount, merchantName } = req.body;
+    const { userID, transactionAmount } = req.body;
 
     if (!userID || !transactionAmount) {
       return res.status(400).json({ error: 'Missing userID or transactionAmount' });
     }
 
-    // Mock Claude 4 round-up suggestion
-    const amount = parseFloat(transactionAmount);
-    const roundedAmount = Math.ceil(amount);
-    const roundUpAmount = roundedAmount - amount;
-
-    const mockSuggestion = {
-      userID,
-      originalTransaction: {
-        amount,
-        merchantName: merchantName || 'Coffee Shop',
-      },
-      roundUpAmount: parseFloat(roundUpAmount.toFixed(2)),
-      suggestedInvestment: {
-        pool: 'Tinyman USDCa Pool',
-        apy: 2.5,
-        estimatedDailyYield: (roundUpAmount * 0.025 / 365).toFixed(6),
-      },
-      message: `Round up your $${amount.toFixed(2)} purchase to $${roundedAmount.toFixed(2)} and invest the $${roundUpAmount.toFixed(2)} difference!`,
-      confidence: 0.85,
-      generatedAt: new Date().toISOString(),
-    };
-
-    return res.json({
-      success: true,
-      suggestion: mockSuggestion,
+    // MOCK ENDPOINT - Returns hardcoded AI suggestions
+    // TODO: Implement real Claude API integration for spending analysis
+    return res.status(501).json({
+      success: false,
+      error: 'AI roundup suggestion endpoint not implemented',
+      message: 'This endpoint returns mock AI suggestions and needs real Claude API integration',
+      implementation_needed: 'Integrate with Claude API for real spending pattern analysis'
     });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

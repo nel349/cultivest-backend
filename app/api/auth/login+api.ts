@@ -9,14 +9,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    // Mock login - send OTP
-    const mockUserID = `user_${phoneNumber.replace(/\D/g, '')}`;
-    
-    return res.json({
-      success: true,
-      message: 'OTP sent for login',
-      userID: mockUserID,
-      otpSent: true,
+    // MOCK ENDPOINT - Not connected to real authentication
+    // TODO: Implement real Supabase authentication flow
+    return res.status(501).json({
+      success: false,
+      error: 'Authentication endpoint not implemented',
+      message: 'This is a mock endpoint. Use real authentication service.',
+      implementation_needed: 'Integrate with Supabase Auth'
     });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

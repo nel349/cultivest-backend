@@ -9,41 +9,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Mock quiz grading (correct answers: [1, 1, 1])
-    const correctAnswers = [1, 1, 1];
-    let score = 0;
-    
-    answers.forEach((answer: number, index: number) => {
-      if (answer === correctAnswers[index]) {
-        score++;
-      }
-    });
-
-    const passed = score >= 2; // Need 2/3 to pass
-    const mockResult = {
-      resultID: `result_${Date.now()}`,
-      userID,
-      contentID,
-      score,
-      totalQuestions: correctAnswers.length,
-      passed,
-      completedAt: new Date().toISOString(),
-    };
-
-    let badgeAwarded = null;
-    if (passed && contentID === 'safety_quiz') {
-      badgeAwarded = {
-        badgeID: 'safe_saver',
-        name: 'Safe Saver',
-        description: 'Completed the stablecoin safety quiz',
-        awardedAt: new Date().toISOString(),
-      };
-    }
-
-    return res.json({
-      success: true,
-      result: mockResult,
-      badgeAwarded,
+    // MOCK ENDPOINT - Returns hardcoded quiz grading
+    // TODO: Implement real quiz grading system with database storage
+    return res.status(501).json({
+      success: false,
+      error: 'Quiz submission endpoint not implemented',
+      message: 'This endpoint returns mock quiz results and needs real implementation',
+      implementation_needed: 'Create quiz grading system with database storage for quiz results and badges'
     });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error' });

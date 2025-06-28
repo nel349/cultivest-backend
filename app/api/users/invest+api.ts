@@ -3,6 +3,8 @@ import { userPortfolioService } from '../../../services/user-portfolio.service';
 import { nftContractService } from '../../../services/nft-contract.service';
 import { supabase } from '../../../utils/supabase';
 import { moonPayService } from '../../../utils/moonpay';
+import { getSolanaPrice, calculateEstimatedSolana } from '../../../utils/solana';
+import { fetchCryptoPrices } from '../../../utils/crypto-prices';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -22,7 +24,7 @@ router.post('/:userId/invest', async (req, res) => {
       holdings, 
       purchaseValueUsd, 
       portfolioName,
-      // New Bitcoin purchase fields
+      // MoonPay purchase fields
       amountUSD,
       useMoonPay = false,
       riskAccepted = false
@@ -50,29 +52,26 @@ router.post('/:userId/invest', async (req, res) => {
         });
       }
       
-      if (assetType !== 1) {
-        return res.status(400).json({
-          success: false,
-          error: 'MoonPay purchases currently only support Bitcoin (assetType: 1)'
-        });
-      }
-      
       if (!riskAccepted) {
+        const assetNames = { 1: 'Bitcoin', 2: 'Algorand', 3: 'USDC', 4: 'Solana' };
+        const assetName = assetNames[assetType as keyof typeof assetNames] || 'Crypto';
+        
         return res.status(400).json({
           success: false,
-          error: 'Bitcoin investment risk acknowledgment required',
+          error: `${assetName} investment risk acknowledgment required`,
           requiresRiskDisclosure: true,
           riskFactors: [
-            'Bitcoin prices are highly volatile and can fluctuate significantly',
+            `${assetName} prices are highly volatile and can fluctuate significantly`,
             'Past performance does not guarantee future results',
             'You may lose some or all of your investment',
-            'Custodial wallets mean Cultivest manages your Bitcoin keys',
+            'Custodial wallets mean Cultivest manages your crypto keys',
             'Consider your risk tolerance before investing'
           ]
         });
       }
     }
 
+    // Support all 4 asset types
     if (![1, 2, 3, 4].includes(assetType)) {
       return res.status(400).json({
         success: false,
@@ -80,12 +79,12 @@ router.post('/:userId/invest', async (req, res) => {
       });
     }
 
-    // Get user's wallet for Bitcoin purchases
+    // Get user's wallet for MoonPay purchases
     let wallet = null;
     if (isMoonPayPurchase) {
       const { data: walletData, error: walletError } = await supabase
         .from('wallets')
-        .select('wallet_id, bitcoin_address, algorand_address')
+        .select('wallet_id, bitcoin_address, algorand_address, solana_address')
         .eq('user_id', userId)
         .single();
 
@@ -96,39 +95,93 @@ router.post('/:userId/invest', async (req, res) => {
         });
       }
 
-      if (!walletData.bitcoin_address) {
+      // Check for required wallet address based on asset type
+      const requiredAddressCheck = {
+        1: { field: 'bitcoin_address', name: 'Bitcoin' },
+        2: { field: 'algorand_address', name: 'Algorand' },
+        3: { field: 'algorand_address', name: 'USDC (Algorand)' }, // USDC on Algorand
+        4: { field: 'solana_address', name: 'Solana' }
+      };
+
+      const addressCheck = requiredAddressCheck[assetType as keyof typeof requiredAddressCheck];
+      if (!walletData[addressCheck.field as keyof typeof walletData]) {
         return res.status(400).json({ 
           success: false,
-          error: 'Bitcoin wallet not found. Please create a new wallet to enable Bitcoin support.' 
+          error: `${addressCheck.name} wallet not found. Please create a new wallet to enable ${addressCheck.name} support.` 
         });
       }
       
       wallet = walletData;
-      
-      if (!wallet) {
-        throw new Error('Wallet data is required for MoonPay purchases');
-      }
     }
 
-    // For MoonPay purchases, calculate Bitcoin details
+    // For MoonPay purchases, calculate crypto details based on asset type
     let calculatedHoldings = holdings;
     let calculatedPurchaseValue = purchaseValueUsd;
-    let bitcoinCalculation = null;
-    let bitcoinPrice = null;
+    let cryptoCalculation = null;
+    let cryptoPrice = null;
     
     if (isMoonPayPurchase) {
       if (!wallet) {
         throw new Error('Wallet is required for MoonPay purchases');
       }
       
-      bitcoinCalculation = await moonPayService.calculateEstimatedBitcoin(amountUSD);
-      bitcoinPrice = await moonPayService.getBitcoinPrice();
-      
-      if (!bitcoinCalculation) {
-        throw new Error('Failed to calculate Bitcoin estimation');
+      if (assetType === 1) {
+        // Bitcoin
+        cryptoCalculation = await moonPayService.calculateEstimatedBitcoin(amountUSD);
+        cryptoPrice = await moonPayService.getBitcoinPrice();
+        
+        if (!cryptoCalculation) {
+          throw new Error('Failed to calculate Bitcoin estimation');
+        }
+        
+        calculatedHoldings = Math.floor(cryptoCalculation.estimatedBTC * 100000000); // Convert to satoshis
+        
+      } else if (assetType === 4) {
+        // Solana
+        cryptoPrice = await getSolanaPrice();
+        cryptoCalculation = await calculateEstimatedSolana(amountUSD);
+        
+        if (!cryptoCalculation) {
+          throw new Error('Failed to calculate Solana estimation');
+        }
+        
+        calculatedHoldings = Math.floor(cryptoCalculation.estimatedSOL * 1000000000); // Convert to lamports
+        
+      } else if (assetType === 2) {
+        // Algorand
+        const prices = await fetchCryptoPrices();
+        cryptoPrice = prices.algorand;
+        const feePercentage = 0.038; // 3.8% total fees
+        const netAmount = amountUSD * (1 - feePercentage);
+        const estimatedALGO = netAmount / cryptoPrice;
+        
+        cryptoCalculation = {
+          estimatedALGO: estimatedALGO,
+          moonpayFee: amountUSD * 0.035, // 3.5%
+          networkFee: amountUSD * 0.003, // 0.3%
+          totalFees: amountUSD * feePercentage
+        };
+        
+        calculatedHoldings = Math.floor(estimatedALGO * 1000000); // Convert to microalgos
+        
+      } else if (assetType === 3) {
+        // USDC
+        const prices = await fetchCryptoPrices();
+        cryptoPrice = prices['usd-coin'];
+        const feePercentage = 0.038;
+        const netAmount = amountUSD * (1 - feePercentage);
+        const estimatedUSDC = netAmount / cryptoPrice;
+        
+        cryptoCalculation = {
+          estimatedUSDC: estimatedUSDC,
+          moonpayFee: amountUSD * 0.035,
+          networkFee: amountUSD * 0.003,
+          totalFees: amountUSD * feePercentage
+        };
+        
+        calculatedHoldings = Math.floor(estimatedUSDC * 1000000); // Convert to microUSDC
       }
       
-      calculatedHoldings = Math.floor(bitcoinCalculation.estimatedBTC * 100000000); // Convert to satoshis
       calculatedPurchaseValue = amountUSD * 100; // Convert to cents
     }
 
@@ -139,21 +192,18 @@ router.post('/:userId/invest', async (req, res) => {
       console.log(`Creating primary portfolio for user ${userId}`);
       
       // Auto-create portfolio for user
-      // For MoonPay purchases, use the Algorand address from the wallet (database)
-      // For direct investments, use the provided algorandAddress from request
       const portfolioOwnerAddress = isMoonPayPurchase && wallet ? wallet.algorand_address : algorandAddress;
       
       const portfolioResult = await nftContractService.mintPortfolioToken({
         owner: portfolioOwnerAddress,
-        level: 1, // Start at level 1
-        metadataCid: 'QmDefaultPortfolioMetadata' // TODO: Generate proper metadata
+        level: 1,
+        metadataCid: 'QmDefaultPortfolioMetadata'
       });
 
       if (!portfolioResult.tokenId) {
         throw new Error('Failed to create portfolio for user');
       }
 
-      // Store in database
       userPortfolio = await userPortfolioService.storeUserPortfolio({
         userId,
         portfolioTokenId: parseInt(portfolioResult.tokenId),
@@ -166,28 +216,32 @@ router.post('/:userId/invest', async (req, res) => {
       console.log(`Created portfolio token ${portfolioResult.tokenId} for user ${userId}`);
     }
 
-    // Step 2: Create investment table record (for indexing/tracking)
-    let investmentRecord = null;
-    let moonpayUrl = null;
-    
-    // Always create investment record for tracking
+    // Step 2: Create investment table record
     const investmentId = uuidv4();
     
-    // Create investment record for both modes
+    // Map asset types to target assets for database
+    const targetAssetMapping = { 1: 'BTC', 2: 'ALGO', 3: 'USDC', 4: 'SOL' };
+    const targetAsset = targetAssetMapping[assetType as keyof typeof targetAssetMapping];
+    
     const investmentData = {
       investment_id: investmentId,
       user_id: userId,
-      investment_type: isMoonPayPurchase ? 'bitcoin_purchase' : 'direct_investment',
-      target_asset: assetType === 1 ? 'BTC' : assetType === 2 ? 'ALGO' : assetType === 3 ? 'USDC' : 'SOL',
+      investment_type: isMoonPayPurchase ? `${targetAsset.toLowerCase()}_purchase` : 'direct_investment',
+      target_asset: targetAsset,
       amount_usd: isMoonPayPurchase ? amountUSD : (calculatedPurchaseValue / 100),
-      status: 'completed', // Always completed for invest endpoint
+      status: 'completed',
       risk_acknowledged: riskAccepted,
       created_at: new Date().toISOString(),
       ...(wallet && { wallet_id: wallet.wallet_id }),
-      ...(isMoonPayPurchase && {
-        estimated_btc: bitcoinCalculation!.estimatedBTC,
-        bitcoin_price_usd: bitcoinPrice,
-        fees_paid: bitcoinCalculation!.totalFees
+      ...(isMoonPayPurchase && cryptoCalculation && assetType === 1 && 'estimatedBTC' in cryptoCalculation && {
+        estimated_btc: cryptoCalculation.estimatedBTC,
+        bitcoin_price_usd: cryptoPrice,
+        fees_paid: cryptoCalculation.totalFees
+      }),
+      ...(isMoonPayPurchase && cryptoCalculation && assetType === 4 && 'estimatedSOL' in cryptoCalculation && {
+        estimated_sol: cryptoCalculation.estimatedSOL,
+        solana_price_usd: cryptoPrice,
+        fees_paid: cryptoCalculation.totalFees
       })
     };
 
@@ -205,16 +259,25 @@ router.post('/:userId/invest', async (req, res) => {
       });
     }
 
-    investmentRecord = investment;
-
     // Generate MoonPay widget URL only for MoonPay purchases
+    let moonpayUrl = null;
     if (isMoonPayPurchase) {
+      const moonPayConfig = {
+        1: { code: 'btc', addressField: 'bitcoin_address' },
+        2: { code: 'algo', addressField: 'algorand_address' },
+        3: { code: 'usdc', addressField: 'algorand_address' }, // USDC on Algorand
+        4: { code: 'sol', addressField: 'solana_address' }
+      };
+      
+      const config = moonPayConfig[assetType as keyof typeof moonPayConfig];
+      const walletAddress = wallet![config.addressField as keyof typeof wallet];
+      
       moonpayUrl = moonPayService.generateWidgetUrl({
-        walletAddress: wallet!.bitcoin_address,
-        currencyCode: 'btc',
+        walletAddress: walletAddress as string,
+        currencyCode: config.code,
         baseCurrencyAmount: amountUSD,
         redirectURL: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/investment/success`,
-        externalTransactionId: `cultivest_btc_${investmentId}`
+        externalTransactionId: `cultivest_${config.code}_${investmentId}`
       });
 
       // Update investment with MoonPay URL
@@ -225,8 +288,6 @@ router.post('/:userId/invest', async (req, res) => {
     }
 
     // Step 3: Mint position NFT
-    // For MoonPay purchases, use the Algorand address from the wallet (database)
-    // For direct investments, use the provided algorandAddress from request
     const ownerAddress = isMoonPayPurchase && wallet ? wallet.algorand_address : algorandAddress;
     
     const positionResult = await nftContractService.mintPositionToken({
@@ -242,7 +303,13 @@ router.post('/:userId/invest', async (req, res) => {
 
     console.log(`Minted position token ${positionResult.tokenId} for user ${userId}`);
 
-    // Step 3: Add position to user's portfolio
+    // Step 4: Add position to user's portfolio
+    console.log(`🔍 Portfolio Debug - About to add position to portfolio:`);
+    console.log(`- Portfolio Token ID: ${userPortfolio.portfolioTokenId}`);
+    console.log(`- Position Token ID: ${positionResult.tokenId}`);
+    console.log(`- Owner Address: ${ownerAddress}`);
+    console.log(`- Portfolio App ID: ${userPortfolio.portfolioAppId}`);
+    
     const portfolioAddResult = await nftContractService.addPositionToPortfolio(userId, {
       portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
       positionTokenId: BigInt(positionResult.tokenId),
@@ -251,11 +318,12 @@ router.post('/:userId/invest', async (req, res) => {
 
     console.log(`Added position ${positionResult.tokenId} to portfolio ${userPortfolio.portfolioTokenId}`);
 
-    // Step 4: Return complete investment result
+    // Step 5: Return complete investment result
     const assetTypeNames = {
       1: 'Bitcoin',
       2: 'Algorand',
-      3: 'USDC'
+      3: 'USDC',
+      4: 'Solana'
     };
 
     const response = {
@@ -270,10 +338,8 @@ router.post('/:userId/invest', async (req, res) => {
           holdings: calculatedHoldings.toString(),
           purchaseValueUsd: calculatedPurchaseValue.toString(),
           owner: ownerAddress,
-          ...(investmentRecord && {
-            investmentId: investmentRecord.investment_id,
-            status: investmentRecord.status
-          })
+          investmentId: investment.investment_id,
+          status: investment.status
         },
         portfolio: {
           id: userPortfolio.id,
@@ -290,23 +356,24 @@ router.post('/:userId/invest', async (req, res) => {
         ...(isMoonPayPurchase && {
           moonpay: {
             url: moonpayUrl,
-            estimatedBTC: bitcoinCalculation!.estimatedBTC,
-            bitcoinPrice,
-            fees: {
-              moonpayFee: bitcoinCalculation!.moonpayFee,
-              networkFee: bitcoinCalculation!.networkFee,
-              total: bitcoinCalculation!.totalFees
-            }
+            targetAsset: targetAsset,
+            estimatedAmount: cryptoCalculation ? (
+              assetType === 1 && 'estimatedBTC' in cryptoCalculation ? cryptoCalculation.estimatedBTC : 
+              assetType === 4 && 'estimatedSOL' in cryptoCalculation ? cryptoCalculation.estimatedSOL :
+              assetType === 2 && 'estimatedALGO' in cryptoCalculation ? cryptoCalculation.estimatedALGO :
+              assetType === 3 && 'estimatedUSDC' in cryptoCalculation ? cryptoCalculation.estimatedUSDC : 0) : 0,
+            cryptoPrice,
+            fees: cryptoCalculation ? {
+              moonpayFee: cryptoCalculation.moonpayFee,
+              networkFee: cryptoCalculation.networkFee,
+              total: cryptoCalculation.totalFees
+            } : { moonpayFee: 0, networkFee: 0, total: 0 }
           },
-          nextSteps: isMoonPayPurchase ? [
-            'Complete Bitcoin purchase via MoonPay',
-            'Bitcoin will be deposited to your custodial wallet',
+          nextSteps: [
+            `Complete ${assetTypeNames[assetType as keyof typeof assetTypeNames]} purchase via MoonPay`,
+            `${assetTypeNames[assetType as keyof typeof assetTypeNames]} will be deposited to your custodial wallet`,
             `Position NFT #${positionResult.tokenId} tracks your completed investment`,
-            'You can view your Bitcoin holdings and NFT in the dashboard'
-          ] : [
-            `Position NFT #${positionResult.tokenId} created successfully`,
-            'Your investment is now tracked on the blockchain',
-            'View your portfolio and NFTs in the dashboard'
+            `You can view your ${assetTypeNames[assetType as keyof typeof assetTypeNames]} holdings and NFT in the dashboard`
           ]
         })
       }
