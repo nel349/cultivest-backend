@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es2018",
+    "target": "es2020",
     "module": "commonjs",
-    "lib": ["es2018"],
+    "lib": ["es2020"],
     "outDir": "./build",
     "rootDir": "./",
     "strict": true,
@@ -15,9 +15,13 @@
     "noUnusedParameters": true,
     "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "declaration": false,
+    "sourceMap": false
   },
   "include": [
     "**/*.ts"

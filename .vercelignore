@@ -1,0 +1,33 @@
+# Development files
+.env.local
+.env.development
+
+# Test files
+test/
+**/*.test.ts
+**/*.spec.ts
+**/*.e2e.spec.ts
+vitest.config.ts
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Scripts that aren't needed in production
+scripts/
+
+# HTTP test files
+*.http
+
+# Contract development files (not needed for API)
+contracts/
+
+# Git and development tools
+.git/
+.gitignore
+.eslintrc*
+.prettierrc*
+
+# Node modules (Vercel installs these)
+node_modules/ 
