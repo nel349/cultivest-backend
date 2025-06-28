@@ -1,6 +1,6 @@
 import { AlgorandClient } from '@algorandfoundation/algokit-utils';
-import { CultivestPositionNftFactory } from '../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/position-nft/CultivestPositionNFTClient.js';
-import { CultivestPortfolioNftFactory } from '../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/portfolio-nft/CultivestPortfolioNFTClient.js';
+import { CultivestPositionNftFactory } from '../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/position-nft/CultivestPositionNFTClient';
+import { CultivestPortfolioNftFactory } from '../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/portfolio-nft/CultivestPortfolioNFTClient';
 import { getUserWallet, decryptPrivateKey } from '../utils/wallet';
 import algosdk from 'algosdk';
 import { AlgoAmount } from '@algorandfoundation/algokit-utils/types/amount';

@@ -29,7 +29,9 @@
   "exclude": [
     "node_modules/**/*",
     "build/**/*",
-    "contracts/**/*",
+    "contracts/**/cultivest_contract-frontend/**/*",
+    "contracts/**/cultivest_contract-contracts/**/*",
+    "!contracts/**/artifacts/**/*",
     "**/*.algo.ts",
     "**/*.e2e.spec.ts",
     "**/*.spec.ts"

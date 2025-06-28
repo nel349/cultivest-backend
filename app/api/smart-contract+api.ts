@@ -1,6 +1,6 @@
 import express from 'express';
 import { AlgorandClient } from '@algorandfoundation/algokit-utils';
-import { HelloWorldFactory } from '../../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/hello_world/HelloWorldClient.js';
+import { HelloWorldFactory } from '../../contracts/cultivest_contract/projects/cultivest_contract-contracts/smart_contracts/artifacts/hello_world/HelloWorldClient';
 import { OnSchemaBreak, OnUpdate } from '@algorandfoundation/algokit-utils/types/app';
 import { getUserWallet, decryptPrivateKey } from '../../utils/wallet';
 import algosdk from 'algosdk';
