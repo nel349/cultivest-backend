@@ -310,7 +310,7 @@ router.post('/:userId/invest', async (req, res) => {
     console.log(`- Owner Address: ${ownerAddress}`);
     console.log(`- Portfolio App ID: ${userPortfolio.portfolioAppId}`);
     
-    const portfolioAddResult = await nftContractService.addPositionToPortfolio(userId, {
+    const portfolioAddResult = await nftContractService.addPositionToPortfolio({
       portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
       positionTokenId: BigInt(positionResult.tokenId),
       owner: ownerAddress

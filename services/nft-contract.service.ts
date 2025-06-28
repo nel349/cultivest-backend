@@ -513,7 +513,6 @@ export class NFTContractService {
    * Add position token to portfolio
    */
   async addPositionToPortfolio(
-    userId: string,
     params: {
       portfolioTokenId: bigint;
       positionTokenId: bigint;

@@ -450,7 +450,7 @@ async function createInvestmentRecord(params: {
 
     // Step 4: Add position to portfolio
     if (userPortfolio && positionResult.tokenId) {
-      await nftContractService.addPositionToPortfolio(userId, {
+      await nftContractService.addPositionToPortfolio({
         portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
         positionTokenId: BigInt(positionResult.tokenId),
         owner: algorandAddress

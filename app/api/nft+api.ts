@@ -407,7 +407,7 @@ router.post('/portfolio/add-position', async (req, res) => {
       });
     }
 
-    const result = await nftContractService.addPositionToPortfolio(userId, {
+    const result = await nftContractService.addPositionToPortfolio({
       portfolioTokenId: BigInt(portfolioTokenId),
       positionTokenId: BigInt(positionTokenId),
       owner
@@ -638,7 +638,7 @@ router.post('/create-investment', async (req, res) => {
     }
 
     // Step 2: Add position to portfolio
-    const portfolioResult = await nftContractService.addPositionToPortfolio(userId, {
+    const portfolioResult = await nftContractService.addPositionToPortfolio({
       portfolioTokenId: BigInt(portfolioTokenId),
       positionTokenId: BigInt(positionResult.tokenId),
       owner
