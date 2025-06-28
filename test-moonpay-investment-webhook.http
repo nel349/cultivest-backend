@@ -1,0 +1,175 @@
+# MoonPay Investment Webhook Tests
+# Test the new /api/moonpay/webhook endpoint
+
+### Test Transaction Created (Initial Event)
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+Moonpay-Signature-V2: t=1492774577,s=test-signature-for-development
+
+{
+  "type": "Transaction Created",
+  "data": {
+    "id": "mp_txn_created_123456789",
+    "status": "pending",
+    "baseCurrencyAmount": 50.00,
+    "baseCurrency": "USD",
+    "externalTransactionId": "cultivest_PENDING_INVESTMENT_UUID_HERE"
+  }
+}
+
+### Test Bitcoin Investment Completion
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+Moonpay-Signature-V2: t=1492774577,s=test-signature-for-development
+
+{
+  "type": "Transaction Updated",
+  "data": {
+    "id": "mp_txn_btc_123456789",
+    "status": "completed",
+    "cryptoAmount": 0.00123456,
+    "cryptoCurrency": "BTC",
+    "baseCurrencyAmount": 50.00,
+    "baseCurrency": "USD",
+    "walletAddress": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    "externalTransactionId": "cultivest_PENDING_INVESTMENT_UUID_HERE",
+    "feeAmount": 1.75,
+    "networkFeeAmount": 0.25
+  }
+}
+
+### Test Solana Investment Completion
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_sol_987654321",
+    "status": "completed",
+    "cryptoAmount": 0.5,
+    "cryptoCurrency": "SOL",
+    "baseCurrencyAmount": 25.00,
+    "baseCurrency": "USD",
+    "walletAddress": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    "externalTransactionId": "cultivest_PENDING_INVESTMENT_UUID_HERE",
+    "feeAmount": 0.95,
+    "networkFeeAmount": 0.05
+  }
+}
+
+### Test Algorand Investment Completion
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_algo_555666777",
+    "status": "completed",
+    "cryptoAmount": 100.5,
+    "cryptoCurrency": "ALGO",
+    "baseCurrencyAmount": 30.00,
+    "baseCurrency": "USD",
+    "walletAddress": "ALGORAND_ADDRESS_HERE",
+    "externalTransactionId": "cultivest_PENDING_INVESTMENT_UUID_HERE",
+    "feeAmount": 1.05,
+    "networkFeeAmount": 0.15
+  }
+}
+
+### Test USDC Investment Completion
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_usdc_888999000",
+    "status": "completed",
+    "cryptoAmount": 48.25,
+    "cryptoCurrency": "USDC",
+    "baseCurrencyAmount": 50.00,
+    "baseCurrency": "USD",
+    "walletAddress": "ALGORAND_ADDRESS_HERE",
+    "externalTransactionId": "cultivest_PENDING_INVESTMENT_UUID_HERE",
+    "feeAmount": 1.75,
+    "networkFeeAmount": 0.25
+  }
+}
+
+### Test Failed Investment
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+Moonpay-Signature-V2: t=1492774577,s=test-signature-for-development
+
+{
+  "type": "Transaction Failed",
+  "data": {
+    "id": "mp_txn_failed_111222333",
+    "status": "failed",
+    "externalTransactionId": "cultivest_PENDING_INVESTMENT_UUID_HERE",
+    "failureReason": "Card declined"
+  }
+}
+
+### Test Sell Transaction (Should be skipped)
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+Moonpay-Signature-V2: t=1492774577,s=test-signature-for-development
+
+{
+  "type": "sell_transaction_created",
+  "id": "ad75172f-f9f8-4835-ac26-b08c189923b3",
+  "status": "waitingForDeposit",
+  "baseCurrencyAmount": 1286,
+  "quoteCurrencyAmount": 1208.17,
+  "flow": "floating"
+}
+
+### Test Cancelled Investment
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+Moonpay-Signature-V2: t=1492774577,s=test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_cancelled_444555666",
+    "status": "cancelled",
+    "externalTransactionId": "cultivest_PENDING_INVESTMENT_UUID_HERE"
+  }
+}
+
+### Test Invalid External Transaction ID (should return 404)
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "transaction_status_change",
+  "data": {
+    "id": "mp_txn_invalid_777888999",
+    "status": "completed",
+    "cryptoAmount": 0.001,
+    "cryptoCurrency": "BTC",
+    "baseCurrencyAmount": 10.00,
+    "externalTransactionId": "cultivest_INVALID_UUID_NOT_FOUND"
+  }
+}
+
+### Test Non-transaction Event (should be ignored)
+POST http://localhost:3000/api/moonpay/webhook
+Content-Type: application/json
+moonpay-signature: test-signature-for-development
+
+{
+  "type": "user_verification_completed",
+  "data": {
+    "id": "usr_123456",
+    "status": "completed"
+  }
+} 

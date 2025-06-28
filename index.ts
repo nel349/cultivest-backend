@@ -26,6 +26,7 @@ import debugSolanaStatusRoutes from './app/api/debug/solana-status+api';
 import walletCreateRoutes from './app/api/wallet/create+api';
 import walletMnemonicRoutes from './app/api/wallet/mnemonic+api';
 import moonpaySignUrlRoutes from './app/api/moonpay/sign-url+api';
+import moonpayWebhookRoutes from './app/api/moonpay/webhook+api';
 import pricesRoutes from './app/api/prices+api';
 import smartContractRoutes from './app/api/smart-contract+api';
 import testSmartContractRoutes from './app/api/test-smart-contract+api';
@@ -120,6 +121,7 @@ apiRouter.use('/debug/opt-in-usdca', optInUsdcaRoutes);
 apiRouter.use('/debug/fund-testnet', fundTestnetRoutes);
 apiRouter.use('/wallet/create', walletCreateRoutes);
 apiRouter.use('/moonpay/sign-url', moonpaySignUrlRoutes);
+apiRouter.use('/moonpay/webhook', moonpayWebhookRoutes);
 
 // Cryptocurrency Prices API
 apiRouter.use('/prices', pricesRoutes);

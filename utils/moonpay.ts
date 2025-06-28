@@ -81,24 +81,59 @@ export class MoonPayService {
       .digest('base64');
   }
 
-  /**
-   * Verify webhook signature from MoonPay
+    /**
+   * Verify webhook signature from MoonPay (V2 format)
+   * Based on: https://dev.moonpay.com/reference/reference-webhooks-signature
    */
-  verifyWebhookSignature(payload: string, signature: string): boolean {
+  verifyWebhookSignature(payload: string, signatureHeader: string): boolean {
     if (!process.env.MOONPAY_WEBHOOK_SECRET) {
       console.warn('MOONPAY_WEBHOOK_SECRET not configured, skipping signature verification');
       return true; // Allow in development/sandbox
     }
 
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.MOONPAY_WEBHOOK_SECRET)
-      .update(payload)
-      .digest('hex');
+    if (!signatureHeader) {
+      console.warn('No signature header provided');
+      return false;
+    }
 
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
-    );
+    try {
+      // Parse the signature header: t=timestamp,s=signature
+      const elements = signatureHeader.split(',');
+      let timestamp = '';
+      let signature = '';
+
+      for (const element of elements) {
+        const [prefix, value] = element.split('=');
+        if (prefix === 't') {
+          timestamp = value;
+        } else if (prefix === 's') {
+          signature = value;
+        }
+      }
+
+      if (!timestamp || !signature) {
+        console.warn('Invalid signature header format');
+        return false;
+      }
+
+      // Create the signed payload: timestamp + "." + JSON_payload
+      const signedPayload = `${timestamp}.${payload}`;
+
+      // Compute expected signature using HMAC-SHA256
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.MOONPAY_WEBHOOK_SECRET)
+        .update(signedPayload)
+        .digest('hex');
+
+      // Compare signatures
+      return crypto.timingSafeEqual(
+        Buffer.from(signature, 'hex'),
+        Buffer.from(expectedSignature, 'hex')
+      );
+    } catch (error) {
+      console.error('Signature verification error:', error);
+      return false;
+    }
   }
 
   /**
