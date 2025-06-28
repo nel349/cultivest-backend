@@ -31,6 +31,11 @@ router.get('/', async (_req, res) => {
           usd: prices.ethereum,
           symbol: 'ETH',
           name: 'Ethereum'
+        },
+        solana: {
+          usd: prices.solana,
+          symbol: 'SOL',
+          name: 'Solana'
         }
       },
       cache: {
@@ -57,8 +62,8 @@ router.get('/:coinId', async (req, res) => {
   try {
     const { coinId } = req.params;
     
-    // Validate coinId
-    const validCoins = ['bitcoin', 'algorand', 'usd-coin', 'ethereum'];
+    // Validate coinId - now includes Solana
+    const validCoins = ['bitcoin', 'algorand', 'usd-coin', 'ethereum', 'solana'];
     if (!validCoins.includes(coinId)) {
       return res.status(400).json({
         success: false,

@@ -1,147 +1,181 @@
-# Database Setup Scripts
+# Database Scripts
 
-This directory contains scripts for setting up the Cultivest database schema and initial data for the micro-investment platform.
+## Overview
 
-## 🚀 Quick Setup
+This directory contains database schema files and utilities for the Cultivest multi-chain investment platform.
 
-**One-command setup** (recommended):
+## 🚀 Quick Start
+
+### New Deployment
+```bash
+# For production with full Solana support
+psql your_database -f scripts/schema-v3.sql
+
+# For testing without Solana
+psql your_database -f scripts/schema-v2.sql
+```
+
+### Existing Deployment
+```bash
+# Run individual migrations (if needed)
+psql your_database -f scripts/add-solana-support.sql
+```
+
+## 📁 Current Schema Files
+
+### Production Ready
+- **`schema-v3.sql`** - ✅ **LATEST** - Full tri-chain support (Bitcoin + Algorand + Solana)
+  - Asset Types: BTC (1), ALGO (2), USDC (3), SOL (4)
+  - 678 lines, complete tri-chain wallet system
+- **`schema-v2.sql`** - ⚡ **STABLE** - Multi-chain without Solana (Bitcoin + Algorand)
+  - Asset Types: BTC (1), ALGO (2), USDC (3)
+  - 637 lines, good for testing
+- **`schema.sql`** - 📚 **LEGACY** - Original single-chain (Algorand only)
+  - 349 lines, deprecated but kept for reference
+
+### Migration Files
+- **`add-solana-support.sql`** - Incremental Solana migration (use V3 instead)
+
+### Development Utilities
+- **`clean-users.sql`** - Reset user data for development
+- **`simple-setup.ts`** - TypeScript setup utilities
+- **`cleanup-obsolete-migrations.sh`** - Remove obsolete migration files
+
+## 🔄 Schema Versioning
+
+We use **consolidated schema versions** instead of multiple migration files:
+
+| Version | Status | Features | Use Case |
+|---------|--------|----------|----------|
+| **V1** | Deprecated | Algorand only | Historical reference |
+| **V2** | Stable | Bitcoin + Algorand | Testing without Solana |
+| **V3** | Latest | Bitcoin + Algorand + Solana | Production deployment |
+
+### Migration Strategy
+1. **New projects**: Use `schema-v3.sql` directly
+2. **Existing projects**: Apply incremental migrations or export/import data
+3. **Testing**: Use `schema-v2.sql` for simpler setup
+
+## 🧹 Cleanup Obsolete Files
+
+Run the cleanup script to remove migration files that have been consolidated:
 
 ```bash
-npm run db:init
+cd cultivest-backend
+./scripts/cleanup-obsolete-migrations.sh
 ```
 
-The script will guide you through the process automatically.
+This will safely remove:
+- `add-deposits-table.sql` → Consolidated into V2+
+- `bitcoin-migration.sql` → Consolidated into V2+
+- `bitcoin-migration-clean.sql` → Consolidated into V2+
+- `add-investment-tx-field.sql` → Consolidated into V2+
+- `create-user-portfolio-table.sql` → Consolidated into V2+
 
-## 📁 Current Files
+## 📊 Database Specifications
 
-### `simple-setup.ts`
-**Main setup script** that:
-- ✅ Checks if required tables exist in your Supabase database
-- 🌐 Automatically opens Supabase SQL Editor in your browser
-- 📋 Provides copy-paste ready SQL if tables are missing
-- 📝 Inserts sample badge data when tables exist
-- 🔄 Handles the complete setup workflow
+### Precision Standards
+- **Bitcoin**: `DECIMAL(18,8)` - Satoshi precision
+- **Algorand**: `DECIMAL(18,6)` - Standard crypto precision  
+- **Solana**: `DECIMAL(18,9)` - Lamport precision
+- **USD**: `DECIMAL(18,2)` - Currency precision
 
-### `schema.sql`
-**Complete PostgreSQL schema** with:
-- ✅ **Fixed syntax** - All `CREATE POLICY` statements use correct PostgreSQL syntax
-- ✅ **UNIQUE constraints** - Proper constraints for `ON CONFLICT` clauses
-- ✅ **Re-runnable** - Safe to run multiple times with `DROP POLICY IF EXISTS`
-- 🗄️ All tables, indexes, RLS policies, and sample data
+### Asset Type Mapping
+- **Type 1**: Bitcoin (BTC) 
+- **Type 2**: Algorand (ALGO)
+- **Type 3**: USD Coin (USDC/USDCa)
+- **Type 4**: Solana (SOL)
 
-### `README.md`
-This documentation file.
+## 🛠️ Development Workflow
 
-## 🗄️ Database Tables Created
+### Local Setup
+```bash
+# Drop existing database and start fresh
+dropdb cultivest_dev
+createdb cultivest_dev
 
-### Core Tables for User Onboarding
-- **`users`** - User profiles with phone, name, country, KYC status, balance tracking
-- **`wallets`** - Custodial Algorand wallets with encrypted private keys
-- **`otp_sessions`** - Phone verification system with expiration and attempt tracking
-- **`badges`** - Gamification achievement system with JSON criteria
+# Apply latest schema
+psql cultivest_dev -f scripts/schema-v3.sql
 
-### Extended Tables (Future Features)
-- **`transactions`** - Financial movements (deposits, investments, withdrawals, yields)
-- **`investment_positions`** - Active Tinyman USDCa pool positions
-- **`educational_content`** - Videos and quizzes about stablecoins/DeFi
-- **`user_quiz_results`** - Learning progress tracking
-- **`user_badges`** - Achievement tracking junction table
-
-### Sample Data Included
-- **5 Achievement Badges**: First Investor, First $10, Safe Saver, Weekly Investor, Century Club
-- **Educational Content**: Stablecoin safety quiz with 3 questions
-- **Proper indexing** for performance on phone lookups, user relationships
-
-## 🔧 How It Works
-
-### Automated Workflow
-1. **Connection Test**: Verifies Supabase credentials
-2. **Table Detection**: Checks which tables exist
-3. **Browser Launch**: Opens Supabase SQL Editor automatically (macOS)
-4. **SQL Provision**: Shows exactly what to copy/paste
-5. **Data Insertion**: Automatically inserts badges when tables exist
-6. **Success Confirmation**: Shows what's ready for development
-
-### Manual Fallback
-If automation fails, the script provides:
-- Direct URL to your Supabase SQL Editor
-- Copy-paste ready SQL with essential tables only
-- Clear step-by-step instructions
-
-## ⚠️ Common Issues & Solutions
-
-### Schema Syntax Errors
-- ✅ **Fixed**: Removed invalid `IF NOT EXISTS` from `CREATE POLICY` statements
-- ✅ **Fixed**: Added `UNIQUE` constraint to `educational_content.title` for `ON CONFLICT`
-- ✅ **Solution**: Use the current `schema.sql` - it has correct PostgreSQL syntax
-
-### Missing Tables Error
-```
-❌ Missing 4 tables: users, badges, wallets, otp_sessions
-```
-**Solution**: Follow the script's instructions to run the SQL in Supabase dashboard.
-
-### Authentication Errors
-```
-❌ Supabase connection failed
-```
-**Solution**: Check your `.env` file has correct credentials:
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# Start development server
+npm run dev
 ```
 
-### Badge Insertion Fails
+### Testing Migrations
+```bash
+# Test on development database first
+psql cultivest_dev -f scripts/add-solana-support.sql
+
+# Verify application still works
+npm test
 ```
-❌ Error inserting badges
+
+## 🔒 Production Deployment
+
+### Pre-deployment Checklist
+- [ ] Backup production database
+- [ ] Test schema changes in staging
+- [ ] Verify all application code compatibility
+- [ ] Plan maintenance window
+- [ ] Prepare rollback strategy
+
+### Deployment Commands
+```bash
+# Create backup
+pg_dump production_db > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Apply schema (choose appropriate version)
+psql production_db -f scripts/schema-v3.sql
+
+# Verify deployment
+psql production_db -c "SELECT COUNT(*) FROM users;"
 ```
-**Solution**: This usually means tables don't exist yet. Run the SQL schema first.
 
-## 🎯 After Successful Setup
+## 🆘 Troubleshooting
 
-Your database will be ready with:
+### Common Issues
 
-### ✅ **User Onboarding Tables**
-- Phone-based authentication system
-- Custodial wallet management
-- KYC status tracking
-- Gamification foundation
+**Column already exists**
+```sql
+-- Use IF NOT EXISTS in migrations
+ALTER TABLE wallets ADD COLUMN IF NOT EXISTS solana_address VARCHAR(44);
+```
 
-### ✅ **Security Configured**
-- Row Level Security (RLS) enabled
-- User data isolation policies
-- Service role permissions for backend operations
-- Public read access for badges and educational content
+**Missing dependencies**
+```bash
+# Install PostgreSQL client tools
+brew install postgresql  # macOS
+sudo apt-get install postgresql-client  # Ubuntu
+```
 
-### ✅ **Performance Optimized**
-- Indexes on frequently queried columns
-- Foreign key relationships
-- Automated timestamp triggers
+**Permission errors**
+```bash
+# Set correct database permissions
+GRANT ALL PRIVILEGES ON DATABASE cultivest TO your_user;
+```
 
-## 🔄 Next Development Steps
+### Recovery
+1. **Schema mismatch**: Check current version with `\d` in psql
+2. **Data corruption**: Restore from backup and reapply changes
+3. **Performance issues**: Check indexes with `\di` in psql
 
-1. **Implement Auth Endpoints**:
-   - Update `app/api/auth/signup+api.ts` to use real Supabase operations
-   - Add proper OTP generation and SMS sending
-   - Implement custodial wallet creation with Algorand SDK
+## 📚 Documentation
 
-2. **Test User Flow**:
-   - Phone signup → OTP verification → wallet creation
-   - KYC integration with MoonPay
-   - Badge earning system
+For detailed versioning information, see:
+- **[Schema Versioning Guide](../docs/SCHEMA_VERSIONING.md)** - Complete versioning strategy
+- **[Architecture Guide](../docs/ALGORAND_ARCHITECTURE.md)** - System architecture
+- **[Smart Contracts Guide](../docs/SMART_CONTRACTS_GUIDE.md)** - NFT and contract integration
 
-3. **Enable Supabase Auth**:
-   - Go to Authentication → Settings in Supabase dashboard
-   - Enable phone authentication
-   - Configure SMS provider (Twilio recommended)
+## 🚧 Future Plans
 
-## 💡 Pro Tips
-
-- **Run `npm run db:init` first** - It handles most cases automatically
-- **Keep `schema.sql`** - Useful reference for the complete database structure
-- **Check Supabase dashboard** after setup to verify tables were created
-- **The script is idempotent** - Safe to run multiple times
+### V4 Roadmap (Planned)
+- Ethereum support (Asset Type 5)
+- Layer 2 integration (Polygon, Arbitrum)
+- Enhanced analytics tables
+- Performance optimizations
 
 ---
 
-**The database setup is designed to support the complete Cultivest platform with a focus on getting User Onboarding working quickly and reliably.**
+**Last Updated**: December 2024  
+**Current Version**: V3 (Tri-chain with Solana)  
+**Contact**: Development Team for migration support

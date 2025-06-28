@@ -78,7 +78,7 @@ export class CultivestPositionNFT extends Contract {
     // Security checks
     assert(Txn.sender === this.authorizedMinter.value);
     assert(this.totalSupply.value < this.maxSupply.value);
-    assert(assetType >= 1 && assetType <= 3); // 1=BTC, 2=ALGO, 3=USDC
+    assert(assetType >= 1 && assetType <= 4); // 1=BTC, 2=ALGO, 3=USDC, 4=SOL
     assert(holdings > 0);
     assert(purchaseValueUSD > 0);
 

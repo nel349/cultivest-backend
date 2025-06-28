@@ -12,7 +12,10 @@
     "start": "node build/index.js",
     "dev": "ts-node-dev --respawn --transpile-only index.ts",
     "dev:strict": "ts-node-dev --respawn index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
     "db:init": "ts-node scripts/simple-setup.ts",
     "test:integration": "ts-node test-database-integration.ts",
     "prestart": "npm run type-check",
@@ -24,6 +27,7 @@
   "license": "ISC",
   "dependencies": {
     "@algorandfoundation/algokit-utils": "^9.1.1",
+    "@solana/web3.js": "^1.98.2",
     "@supabase/supabase-js": "^2.43.4",
     "@types/bitcoinjs-lib": "^4.0.1",
     "@types/crypto-js": "^4.2.2",
@@ -39,6 +43,7 @@
     "expo-clipboard": "^7.1.4",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "litesvm": "^0.2.0",
     "node-fetch": "^3.3.2",
     "tiny-secp256k1": "^2.2.4",
     "twilio": "^5.7.1",
@@ -48,8 +53,12 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.2",
+    "@types/supertest": "^6.0.2",
+    "@vitest/ui": "^1.6.0",
+    "supertest": "^6.3.4",
     "ts-node": "^10.9.1",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
   }
 }
