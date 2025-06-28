@@ -141,11 +141,13 @@ apiRouter.use('/users', userInvestmentRoutes);
 
 app.use('/api/v1', apiRouter);
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Cultivest Backend listening on port ${PORT}`);
-  console.log(`Access it at http://localhost:${PORT}`);
-});
+// Only start the server if not running on Vercel (for local development)
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Cultivest Backend listening on port ${PORT}`);
+    console.log(`Access it at http://localhost:${PORT}`);
+  });
+}
 
 // Export app for testing or Vercel serverless function wrapper
 export default app; 
