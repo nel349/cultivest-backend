@@ -1,8 +1,30 @@
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import crypto from 'crypto';
 
-// Solana configuration
-const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+/**
+ * Solana Integration for Cultivest Multi-Chain Investment Platform
+ * 
+ * NETWORK CONFIGURATION:
+ * - Using Solana TESTNET for development/testing
+ * - Testnet is compatible with MoonPay's Solana payment processing
+ * - Default RPC: https://api.testnet.solana.com
+ * - Can be overridden with SOLANA_RPC_URL environment variable
+ * 
+ * MOONPAY COMPATIBILITY:
+ * - MoonPay supports Solana testnet for payment processing
+ * - Users can buy SOL directly through MoonPay widget
+ * - Testnet SOL can be used for testing investment flows
+ * 
+ * FEATURES:
+ * - Wallet generation and encryption
+ * - Balance fetching and monitoring
+ * - Price fetching from CoinGecko
+ * - Investment amount calculations
+ * - Network health monitoring
+ */
+
+// Solana configuration - Using testnet for MoonPay compatibility
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.testnet.solana.com';
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 // Encryption key for private keys (should match the one used for other wallets)
@@ -185,8 +207,8 @@ export const getSolanaNetworkInfo = async () => {
     const slot = await connection.getSlot();
     
     return {
-      network: SOLANA_RPC_URL.includes('devnet') ? 'devnet' : 
-               SOLANA_RPC_URL.includes('testnet') ? 'testnet' : 'mainnet',
+      network: SOLANA_RPC_URL.includes('testnet') ? 'testnet' : 
+               SOLANA_RPC_URL.includes('devnet') ? 'devnet' : 'mainnet',
       rpcUrl: SOLANA_RPC_URL,
       version,
       currentSlot: slot,

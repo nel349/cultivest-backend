@@ -30,28 +30,52 @@ router.post('/', async (req, res) => {
     
     console.log('📊 Fetching portfolio for user:', userID);
     
-    // Get user's multi-chain wallet with live balances
+    // Get user's wallet with live balances
     const wallet = await getUserWallet(userID, true);
-
     if (!wallet) {
-      return res.status(404).json({ 
-        error: 'User wallet not found' 
-      });
+      return res.status(404).json({ error: 'Wallet not found' });
     }
 
-    // Get current prices
-    const btcPrice = await moonPayService.getBitcoinPrice();
-    const algoPrice = await moonPayService.getAlgoPrice();
-
-    // Calculate portfolio values
     const btcBalance = wallet.onChainBalance?.btc || wallet.balance.btc || 0;
     const algoBalance = wallet.onChainBalance?.algo || wallet.balance.algo || 0;
     const usdcBalance = wallet.onChainBalance?.usdca || wallet.balance.usdca || 0;
+    const solBalance = wallet.onChainBalance?.sol || wallet.balance.sol || 0;
 
-    const btcValueUSD = btcBalance * btcPrice;
-    const algoValueUSD = algoBalance * algoPrice;
-    const usdcValueUSD = usdcBalance * 1; // USDC ≈ $1
-    const totalPortfolioValueUSD = btcValueUSD + algoValueUSD + usdcValueUSD;
+    // Get live cryptocurrency prices
+    let btcPriceUSD = 97000;  // Fallback
+    let algoPriceUSD = 0.40;  // Fallback  
+    let solPriceUSD = 95;     // Fallback
+
+    try {
+      const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
+      const pricesResult = await fetch(`${API_BASE_URL}/api/prices`);
+      
+      if (pricesResult.ok) {
+        const pricesData = await pricesResult.json() as any;
+        if (pricesData.success && pricesData.prices) {
+          btcPriceUSD = pricesData.prices.bitcoin?.usd || btcPriceUSD;
+          algoPriceUSD = pricesData.prices.algorand?.usd || algoPriceUSD;
+          solPriceUSD = pricesData.prices.solana?.usd || solPriceUSD;
+        }
+      }
+    } catch (error) {
+      console.log('Using fallback prices due to fetch error:', error);
+    }
+
+    // Calculate USD values
+    const btcValueUSD = btcBalance * btcPriceUSD;
+    const algoValueUSD = algoBalance * algoPriceUSD;
+    const usdcValueUSD = usdcBalance * 1.0; // USDC is pegged to $1
+    const solValueUSD = solBalance * solPriceUSD;
+    const totalPortfolioValueUSD = btcValueUSD + algoValueUSD + usdcValueUSD + solValueUSD;
+
+    // Calculate allocation percentages
+    const allocation = {
+      bitcoin: totalPortfolioValueUSD > 0 ? (btcValueUSD / totalPortfolioValueUSD) * 100 : 0,
+      algorand: totalPortfolioValueUSD > 0 ? (algoValueUSD / totalPortfolioValueUSD) * 100 : 0,
+      usdc: totalPortfolioValueUSD > 0 ? (usdcValueUSD / totalPortfolioValueUSD) * 100 : 0,
+      solana: totalPortfolioValueUSD > 0 ? (solValueUSD / totalPortfolioValueUSD) * 100 : 0
+    };
 
     // Get investment history
     let investments = [];
@@ -66,41 +90,17 @@ router.post('/', async (req, res) => {
 
       if (!investmentError && investmentData) {
         investments = investmentData;
-        totalInvestedUSD = investments.reduce((sum, inv) => sum + (inv.amount_usd || 0), 0);
+        totalInvestedUSD = investments.reduce((sum, inv) => sum + inv.amount_usd, 0);
       }
     } catch (error) {
       console.log('💡 Investments table not available, using basic portfolio data');
     }
 
-    // Calculate performance
+    // Calculate unrealized P&L
     const unrealizedPnL = totalPortfolioValueUSD - totalInvestedUSD;
-    const portfolioPerformance = totalInvestedUSD > 0 
-      ? ((unrealizedPnL / totalInvestedUSD) * 100).toFixed(2) + '%'
-      : '0.00%';
+    const portfolioPerformance = totalInvestedUSD > 0 ? (unrealizedPnL / totalInvestedUSD) * 100 : 0;
 
-    // Portfolio allocation
-    const allocation = {
-      bitcoin: {
-        balance: btcBalance,
-        valueUSD: btcValueUSD,
-        percentage: totalPortfolioValueUSD > 0 ? ((btcValueUSD / totalPortfolioValueUSD) * 100).toFixed(1) + '%' : '0.0%',
-        price: btcPrice
-      },
-      algorand: {
-        balance: algoBalance,
-        valueUSD: algoValueUSD,
-        percentage: totalPortfolioValueUSD > 0 ? ((algoValueUSD / totalPortfolioValueUSD) * 100).toFixed(1) + '%' : '0.0%',
-        price: algoPrice
-      },
-      usdc: {
-        balance: usdcBalance,
-        valueUSD: usdcValueUSD,
-        percentage: totalPortfolioValueUSD > 0 ? ((usdcValueUSD / totalPortfolioValueUSD) * 100).toFixed(1) + '%' : '0.0%',
-        price: 1.0
-      }
-    };
-
-    // Portfolio NFT info (if available)
+    // Try to fetch Portfolio NFT data
     let portfolioNFT = null;
     try {
       const { data: nftData } = await supabase
@@ -135,15 +135,23 @@ router.post('/', async (req, res) => {
         bitcoin: {
           address: wallet.bitcoinAddress,
           balance: btcBalance,
-          valueUSD: btcValueUSD
+          valueUSD: btcValueUSD,
+          priceUSD: btcPriceUSD
         },
         algorand: {
           address: wallet.algorandAddress,
           balance: algoBalance,
           valueUSD: algoValueUSD,
+          priceUSD: algoPriceUSD,
           usdcBalance,
           usdcValueUSD,
           isOptedIntoUSDC: wallet.onChainBalance?.isOptedIntoUSDCa || false
+        },
+        solana: {
+          address: wallet.solanaAddress,
+          balance: solBalance,
+          valueUSD: solValueUSD,
+          priceUSD: solPriceUSD
         }
       },
       portfolioNFT,
@@ -156,9 +164,23 @@ router.post('/', async (req, res) => {
         status: inv.status
       })),
       analytics: {
-        bitcoinFirst: btcValueUSD >= algoValueUSD,
-        diversificationScore: btcBalance > 0 && algoBalance > 0 ? 'Diversified' : 'Single Asset',
-        riskLevel: btcValueUSD > (totalPortfolioValueUSD * 0.7) ? 'High' : 'Moderate'
+        bitcoinFirst: btcValueUSD >= Math.max(algoValueUSD, solValueUSD),
+        solanaFirst: solValueUSD >= Math.max(btcValueUSD, algoValueUSD),
+        diversificationScore: 
+          (btcBalance > 0 ? 1 : 0) + 
+          (algoBalance > 0 ? 1 : 0) + 
+          (solBalance > 0 ? 1 : 0) + 
+          (usdcBalance > 0 ? 1 : 0),
+        isMultiChain: [btcBalance, algoBalance, solBalance].filter(b => b > 0).length >= 2,
+        riskLevel: btcValueUSD > (totalPortfolioValueUSD * 0.7) ? 'High' : 
+                  solValueUSD > (totalPortfolioValueUSD * 0.7) ? 'High' : 'Moderate',
+        supportedAssets: ['BTC', 'ALGO', 'USDC', 'SOL'],
+        activeAssets: [
+          ...(btcBalance > 0 ? ['BTC'] : []),
+          ...(algoBalance > 0 ? ['ALGO'] : []),
+          ...(usdcBalance > 0 ? ['USDC'] : []),
+          ...(solBalance > 0 ? ['SOL'] : [])
+        ]
       }
     });
 

@@ -91,10 +91,10 @@ router.get('/', async (_req, res) => {
         overallStatus: allTestsPassed ? '🟢 All systems operational' : '🔴 Issues detected'
       },
       nextSteps: allTestsPassed ? [
-        'Solana integration is ready to use',
+        'Solana testnet integration is ready to use (MoonPay compatible)',
         'Run database migration: add-solana-support.sql',
         'Test wallet creation with Solana support',
-        'Consider adding MoonPay Solana support'
+        'MoonPay Solana testnet support is enabled'
       ] : [
         'Fix failed tests before proceeding',
         'Check network connectivity',

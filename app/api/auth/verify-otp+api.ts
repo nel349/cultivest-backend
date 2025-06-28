@@ -189,6 +189,12 @@ router.post('/', async (req, res) => {
       .eq('user_id', userID)
       .lt('expires_at', new Date().toISOString());
 
+    // check if we are on dev
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev) {
+      console.log('🔐 Auth Token:', authToken);
+    }
+
     return res.json({
       success: true,
       message: 'OTP verified successfully',
