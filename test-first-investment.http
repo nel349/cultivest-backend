@@ -1,0 +1,86 @@
+### Test First Investment Detection & Celebration Features
+### Make sure to run the SQL migration first: scripts/add-first-investment-tracking.sql
+
+# Get the base URL
+@baseUrl = http://localhost:3000/api/v1
+
+# Test user ID (replace with actual user ID from your database)
+@testUserId = 045b5515-f334-436b-93b5-cc03fbcf8071
+
+### 1. Check first investment status (before any investments)
+GET {{baseUrl}}/user/first-investment-status?userID={{testUserId}}
+Content-Type: application/json
+
+### 2. Check auto-fund preference (should be true from previous test)
+GET {{baseUrl}}/debug/set-auto-fund-preference?userID={{testUserId}}
+
+### 3. Create a test investment manually (simulate completed investment)
+### This would normally happen through the webhook, but for testing:
+POST http://localhost:5432/sql
+Content-Type: application/sql
+
+UPDATE users SET first_investment_completed_at = NOW() WHERE user_id = '{{testUserId}}';
+
+INSERT INTO investments (
+  investment_id,
+  user_id,
+  investment_type,
+  target_asset,
+  amount_usd,
+  status,
+  risk_acknowledged,
+  is_first_investment,
+  created_at,
+  completed_at
+) VALUES (
+  gen_random_uuid(),
+  '{{testUserId}}',
+  'btc_purchase',
+  'BTC',
+  15.57,
+  'completed',
+  true,
+  true,
+  NOW(),
+  NOW()
+) ON CONFLICT DO NOTHING;
+
+### 4. Check first investment status (after first investment)
+GET {{baseUrl}}/user/first-investment-status?userID={{testUserId}}
+
+### 5. Test validation - missing userID
+GET {{baseUrl}}/user/first-investment-status
+
+### 6. Test with non-existent user
+GET {{baseUrl}}/user/first-investment-status?userID=00000000-0000-0000-0000-000000000000
+
+### 7. Simulate a second investment (to test celebration logic)
+POST http://localhost:5432/sql
+Content-Type: application/sql
+
+INSERT INTO investments (
+  investment_id,
+  user_id,
+  investment_type,
+  target_asset,
+  amount_usd,
+  status,
+  risk_acknowledged,
+  is_first_investment,
+  created_at,
+  completed_at
+) VALUES (
+  gen_random_uuid(),
+  '{{testUserId}}',
+  'algo_purchase',
+  'ALGO',
+  25.00,
+  'completed',
+  true,
+  false,
+  NOW(),
+  NOW()
+) ON CONFLICT DO NOTHING;
+
+### 8. Check status after second investment (shouldShowCelebration should be false)
+GET {{baseUrl}}/user/first-investment-status?userID={{testUserId}} 

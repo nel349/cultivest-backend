@@ -630,7 +630,17 @@ async function createUserInvestment(params: {
       console.log(`Created portfolio token ${portfolioResult.tokenId} for user ${userId}`);
     }
 
-    // Step 2: Create investment table record
+    // Step 2: Check if this is user's first investment
+    const { data: existingInvestments } = await supabase
+      .from('investments')
+      .select('investment_id')
+      .eq('user_id', userId)
+      .eq('status', 'completed');
+    
+    const isFirstInvestment = !existingInvestments || existingInvestments.length === 0;
+    console.log(`🎯 First investment check for user ${userId}: ${isFirstInvestment ? 'YES - First investment!' : 'No - Has previous investments'}`);
+    
+    // Step 3: Create investment table record
     const investmentId = uuidv4();
     
     // Map asset types to target assets for database
@@ -646,7 +656,8 @@ async function createUserInvestment(params: {
       status: 'completed',
       risk_acknowledged: true,
       created_at: new Date().toISOString(),
-      moonpay_transaction_id: moonpayTransactionId || null
+      moonpay_transaction_id: moonpayTransactionId || null,
+      is_first_investment: isFirstInvestment
     };
 
     const { data: investment, error: investmentError } = await supabase
@@ -660,7 +671,26 @@ async function createUserInvestment(params: {
       throw new Error('Failed to create investment record');
     }
 
-    // Step 3: Mint position NFT
+    // Step 3.5: Update user's first investment timestamp if this is their first
+    if (isFirstInvestment) {
+      console.log(`🎉 Updating user ${userId} first investment timestamp`);
+      const { error: userUpdateError } = await supabase
+        .from('users')
+        .update({ 
+          first_investment_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+      
+      if (userUpdateError) {
+        console.error('Failed to update user first investment timestamp:', userUpdateError);
+        // Don't throw error - investment already created successfully
+      } else {
+        console.log(`✅ Marked first investment completion for user ${userId}`);
+      }
+    }
+
+    // Step 4: Mint position NFT
     const positionResult = await nftContractService.mintPositionToken({
       owner: algorandAddress,
       assetType,
@@ -674,7 +704,7 @@ async function createUserInvestment(params: {
 
     console.log(`Minted position token ${positionResult.tokenId} for user ${userId}`);
 
-    // Step 4: Add position to user's portfolio
+    // Step 5: Add position to user's portfolio
     console.log(`🔍 Portfolio Debug - About to add position to portfolio:`);
     console.log(`- Portfolio Token ID: ${userPortfolio.portfolioTokenId}`);
     console.log(`- Position Token ID: ${positionResult.tokenId}`);
@@ -689,7 +719,7 @@ async function createUserInvestment(params: {
 
     console.log(`Added position ${positionResult.tokenId} to portfolio ${userPortfolio.portfolioTokenId}`);
 
-    // Step 5: Return complete investment result
+    // Step 6: Return complete investment result
     const assetTypeNames = {
       1: 'Bitcoin',
       2: 'Algorand',
@@ -709,7 +739,8 @@ async function createUserInvestment(params: {
           purchaseValueUsd: calculatedPurchaseValue.toString(),
           owner: algorandAddress,
           investmentId: investment.investment_id,
-          status: investment.status
+          status: investment.status,
+          isFirstInvestment: isFirstInvestment
         },
         portfolio: {
           id: userPortfolio.id,
@@ -722,6 +753,12 @@ async function createUserInvestment(params: {
           portfolioTransactionId: portfolioAddResult.transactionId,
           positionAppId: positionResult.appId,
           portfolioAppId: userPortfolio.portfolioAppId.toString()
+        },
+        celebration: {
+          isFirstInvestment: isFirstInvestment,
+          message: isFirstInvestment ? 
+            `🎉 Congratulations on your first ${assetTypeNames[assetType as keyof typeof assetTypeNames]} investment!` : 
+            'Investment completed successfully'
         }
       }
     };
