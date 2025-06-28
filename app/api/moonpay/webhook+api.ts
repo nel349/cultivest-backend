@@ -21,19 +21,26 @@ interface MoonPayWebhookData {
   };
 }
 
-interface PendingInvestment {
-  id: string;
+interface Investment {
+  investment_id: string;
   user_id: string;
-  asset_type: number;
+  wallet_id?: string;
+  investment_type: string;
+  target_asset: string;
   amount_usd: number;
-  wallet_address: string;
-  status: string;
+  estimated_btc?: number;
+  estimated_algo?: number;
+  estimated_sol?: number;
+  bitcoin_price_usd?: number;
+  algo_price_usd?: number;
+  solana_price_usd?: number;
+  fees_paid?: number;
+  moonpay_url?: string;
   moonpay_transaction_id?: string;
-  crypto_amount?: number;
-  investment_id?: string;
-  position_nft_id?: string;
-  error_message?: string;
+  status: string;
+  risk_acknowledged: boolean;
   created_at: string;
+  completed_at?: string;
   updated_at?: string;
 }
 
@@ -144,52 +151,128 @@ router.post('/', async (req, res) => {
       baseCurrencyAmount
     });
 
-    // Find pending investment by external transaction ID
-    const pendingInvestment = await findPendingInvestment(externalTransactionId || id);
-    
-    if (!pendingInvestment) {
-      console.error('❌ Pending investment not found for:', externalTransactionId || id);
-      return res.status(404).json({ error: 'Pending investment not found' });
-    }
-
-    console.log('📊 Processing investment for user:', pendingInvestment.user_id);
-
-    // Update with MoonPay transaction ID if not set
-    if (!pendingInvestment.moonpay_transaction_id) {
-      await updatePendingInvestment(pendingInvestment.id, { moonpay_transaction_id: id });
-    }
-
     // Process based on MoonPay event type and status
     const isCreatedEvent = ['Transaction Created', 'transaction_created'].includes(webhookData.type);
     const isUpdatedEvent = ['Transaction Updated', 'transaction_updated'].includes(webhookData.type);
     const isFailedEvent = ['Transaction Failed', 'transaction_failed'].includes(webhookData.type);
+
+    // Find investment by external transaction ID or MoonPay transaction ID
+    let investment = await findInvestment(externalTransactionId || id);
     
+    // If no investment found and this is a pending status update, create one
+    if (!investment && status === 'pending' && isUpdatedEvent) {
+      console.log('💡 Creating missing investment record for transaction:', id);
+      
+      // Extract wallet address and derive user info
+      const walletAddress = data.walletAddress;
+      if (!walletAddress) {
+        console.error('❌ No wallet address in webhook data to create investment');
+        return res.status(400).json({ error: 'No wallet address provided' });
+      }
+      
+      // Look up user by wallet address
+      const user = await findUserByWalletAddress(walletAddress);
+      if (!user) {
+        console.error('❌ No user found for wallet address:', walletAddress);
+        return res.status(404).json({ error: 'User not found for wallet address' });
+      }
+      
+      // Map crypto currency to target asset
+      const targetAssetMap: { [key: string]: string } = {
+        'btc': 'BTC',
+        'algo': 'ALGO', 
+        'usdc': 'USDC',
+        'sol': 'SOL'
+      };
+      
+      const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
+      
+      // Create investment record
+      investment = await createInvestmentRecord({
+        userId: user.user_id,
+        targetAsset: targetAsset,
+        amountUsd: baseCurrencyAmount || 0,
+        moonpayTransactionId: id
+      });
+      
+      if (investment) {
+        console.log('✅ Created investment:', investment.investment_id);
+      }
+    }
+    
+    // If no investment found but this is a failed/cancelled event, create a failed record
+    if (!investment && (isFailedEvent || status === 'failed' || status === 'cancelled')) {
+      console.log('💡 Creating failed investment record for transaction:', id);
+      
+      // Extract wallet address and derive user info
+      const walletAddress = data.walletAddress;
+      if (walletAddress) {
+        const user = await findUserByWalletAddress(walletAddress);
+        if (user) {
+          // Map crypto currency to target asset
+          const targetAssetMap: { [key: string]: string } = {
+            'btc': 'BTC',
+            'algo': 'ALGO', 
+            'usdc': 'USDC',
+            'sol': 'SOL'
+          };
+          
+          const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
+          
+          // Create failed investment record
+          investment = await createInvestmentRecord({
+            userId: user.user_id,
+            targetAsset: targetAsset,
+            amountUsd: baseCurrencyAmount || 0,
+            moonpayTransactionId: id
+          });
+          
+          if (investment) {
+            console.log('✅ Created failed investment record:', investment.investment_id);
+          }
+        }
+      }
+    }
+    
+    if (!investment) {
+      console.error('❌ Investment not found for:', externalTransactionId || id);
+      return res.status(404).json({ error: 'Investment not found' });
+    }
+
+    console.log('📊 Processing investment for user:', investment.user_id);
+
+    // Update with MoonPay transaction ID if not set
+    if (!investment.moonpay_transaction_id) {
+      await updateInvestment(investment.investment_id, { moonpay_transaction_id: id });
+    }
+
+    // Process based on MoonPay event type and status    
     if (isCreatedEvent) {
       console.log(`📝 Transaction created: ${id}`);
-      await updatePendingInvestment(pendingInvestment.id, { status: 'moonpay_initiated' });
+      await updateInvestment(investment.investment_id, { status: 'processing' });
       
     } else if (isUpdatedEvent) {
       // Check the status for completion, failure, or cancellation
       switch (status) {
         case 'completed':
-          await handleMoonPayCompleted(pendingInvestment, finalCryptoAmount || 0, baseCurrencyAmount || pendingInvestment.amount_usd, finalCryptoCurrency || 'BTC');
+          await handleMoonPayCompleted(investment, finalCryptoAmount || 0, baseCurrencyAmount || investment.amount_usd, finalCryptoCurrency || 'BTC');
           break;
 
         case 'failed':
-          await handleMoonPayFailed(pendingInvestment, failureReason);
+          await handleMoonPayFailed(investment, failureReason);
           break;
 
         case 'cancelled':
-          await handleMoonPayCancelled(pendingInvestment);
+          await handleMoonPayCancelled(investment);
           break;
 
         default:
           console.log(`ℹ️ Transaction updated to status ${status} - no action needed`);
-          await updatePendingInvestment(pendingInvestment.id, { status: status });
+          await updateInvestment(investment.investment_id, { status: 'processing' });
       }
       
     } else if (isFailedEvent) {
-      await handleMoonPayFailed(pendingInvestment, failureReason);
+      await handleMoonPayFailed(investment, failureReason);
     }
 
     return res.json({ success: true, message: 'Webhook processed successfully' });
@@ -204,19 +287,24 @@ router.post('/', async (req, res) => {
  * Handle successful MoonPay payment - create investment and NFTs
  */
 async function handleMoonPayCompleted(
-  pendingInvestment: PendingInvestment, 
+  investment: Investment, 
   cryptoAmount: number, 
   usdAmount: number,
   cryptoCurrency: string
 ) {
   try {
-    console.log(`✅ MoonPay completed for user ${pendingInvestment.user_id}: ${cryptoAmount} ${cryptoCurrency}`);
+    console.log(`✅ MoonPay completed for user ${investment.user_id}: ${cryptoAmount} ${cryptoCurrency}`);
 
-    // Mark pending investment as moonpay_completed
-    await updatePendingInvestment(pendingInvestment.id, { 
-      status: 'moonpay_completed',
-      crypto_amount: cryptoAmount
-    });
+    // Get user's wallet address for NFT creation
+    const { data: wallet, error: walletError } = await supabase
+      .from('wallets')
+      .select('algorand_address')
+      .eq('user_id', investment.user_id)
+      .single();
+
+    if (walletError || !wallet) {
+      throw new Error('Could not find user wallet for NFT creation');
+    }
 
     // Convert crypto currency to asset type
     const assetTypeMap: { [key: string]: number } = {
@@ -226,7 +314,7 @@ async function handleMoonPayCompleted(
       'SOL': 4
     };
 
-    const assetType = assetTypeMap[cryptoCurrency.toUpperCase()] || pendingInvestment.asset_type;
+    const assetType = assetTypeMap[cryptoCurrency.toUpperCase()] || 1;
 
     // Convert crypto amount to holdings (smallest unit)
     let holdings: bigint;
@@ -247,28 +335,27 @@ async function handleMoonPayCompleted(
         holdings = BigInt(Math.floor(cryptoAmount * 1000000)); // Default to 6 decimals
     }
 
-    // Call the users/invest endpoint internally
-    const investmentResult = await createInvestmentRecord({
-      userId: pendingInvestment.user_id,
-      algorandAddress: pendingInvestment.wallet_address,
+    // Call the actual investment creation logic
+    const investmentResult = await createUserInvestment({
+      userId: investment.user_id,
+      algorandAddress: wallet.algorand_address,
       assetType: assetType,
       holdings: holdings.toString(),
       purchaseValueUsd: Math.floor(usdAmount * 100), // Convert to cents
       portfolioName: 'My Portfolio',
-      moonpayTransactionId: pendingInvestment.moonpay_transaction_id || undefined
+      moonpayTransactionId: investment.moonpay_transaction_id || undefined
     });
 
     if (investmentResult.success) {
       console.log('🎯 Investment and NFTs created successfully:', investmentResult.data);
       
-      // Mark pending investment as completed
-      await updatePendingInvestment(pendingInvestment.id, { 
+      // Mark investment as completed
+      await updateInvestment(investment.investment_id, { 
         status: 'completed',
-        investment_id: investmentResult.data.investmentId,
-        position_nft_id: investmentResult.data.positionTokenId
+        completed_at: new Date().toISOString()
       });
 
-      console.log(`✅ Investment completed for user ${pendingInvestment.user_id}`);
+      console.log(`✅ Investment completed for user ${investment.user_id}`);
     } else {
       throw new Error(`Investment creation failed: ${investmentResult.error}`);
     }
@@ -277,9 +364,8 @@ async function handleMoonPayCompleted(
     console.error('❌ Error handling MoonPay completion:', error);
     
     // Mark as failed
-    await updatePendingInvestment(pendingInvestment.id, {
-      status: 'failed',
-      error_message: `Failed to process completed payment: ${error}`
+    await updateInvestment(investment.investment_id, {
+      status: 'failed'
     });
     
     throw error;
@@ -289,13 +375,12 @@ async function handleMoonPayCompleted(
 /**
  * Handle failed MoonPay payment
  */
-async function handleMoonPayFailed(pendingInvestment: PendingInvestment, failureReason?: string) {
+async function handleMoonPayFailed(investment: Investment, failureReason?: string) {
   try {
-    console.log(`❌ MoonPay failed for user ${pendingInvestment.user_id}: ${failureReason}`);
+    console.log(`❌ MoonPay failed for user ${investment.user_id}: ${failureReason}`);
 
-    await updatePendingInvestment(pendingInvestment.id, {
-      status: 'failed',
-      error_message: failureReason || 'Payment failed in MoonPay'
+    await updateInvestment(investment.investment_id, {
+      status: 'failed'
     });
 
   } catch (error) {
@@ -306,11 +391,11 @@ async function handleMoonPayFailed(pendingInvestment: PendingInvestment, failure
 /**
  * Handle cancelled MoonPay payment
  */
-async function handleMoonPayCancelled(pendingInvestment: PendingInvestment) {
+async function handleMoonPayCancelled(investment: Investment) {
   try {
-    console.log(`🚫 MoonPay cancelled for user ${pendingInvestment.user_id}`);
+    console.log(`🚫 MoonPay cancelled for user ${investment.user_id}`);
 
-    await updatePendingInvestment(pendingInvestment.id, {
+    await updateInvestment(investment.investment_id, {
       status: 'cancelled'
     });
 
@@ -320,32 +405,18 @@ async function handleMoonPayCancelled(pendingInvestment: PendingInvestment) {
 }
 
 /**
- * Find pending investment by external transaction ID or MoonPay transaction ID
+ * Find investment by external transaction ID or MoonPay transaction ID
  */
-async function findPendingInvestment(transactionId: string | undefined): Promise<PendingInvestment | null> {
+async function findInvestment(transactionId: string | undefined): Promise<Investment | null> {
   try {
     if (!transactionId) {
-      console.warn('No transaction ID provided to find pending investment');
+      console.warn('No transaction ID provided to find investment');
       return null;
-    }
-
-    // Try to find by external transaction ID first
-    if (transactionId.startsWith('cultivest_')) {
-      const investmentId = transactionId.replace('cultivest_', '');
-      const { data, error } = await supabase
-        .from('pending_investments')
-        .select('*')
-        .eq('id', investmentId)
-        .single();
-
-      if (!error && data) {
-        return data;
-      }
     }
 
     // Try to find by MoonPay transaction ID
     const { data, error } = await supabase
-      .from('pending_investments')
+      .from('investments')
       .select('*')
       .eq('moonpay_transaction_id', transactionId)
       .single();
@@ -353,30 +424,31 @@ async function findPendingInvestment(transactionId: string | undefined): Promise
     return error ? null : data;
 
   } catch (error) {
-    console.error('Error finding pending investment:', error);
+    console.error('Error finding investment:', error);
     return null;
   }
 }
 
 /**
- * Update pending investment record
+ * Update investment record
  */
-async function updatePendingInvestment(id: string, updates: Partial<PendingInvestment>) {
+async function updateInvestment(investmentId: string, updates: Partial<Investment>) {
   const { error } = await supabase
-    .from('pending_investments')
+    .from('investments')
     .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('investment_id', investmentId);
 
   if (error) {
-    console.error('Error updating pending investment:', error);
+    console.error('Error updating investment:', error);
     throw error;
   }
 }
 
 /**
- * Call the users/invest endpoint internally to create investment + NFTs
+ * Create user investment with NFTs - extracted from users/invest endpoint
+ * This is the same logic used by the main investment API
  */
-async function createInvestmentRecord(params: {
+async function createUserInvestment(params: {
   userId: string;
   algorandAddress: string;
   assetType: number;
@@ -386,12 +458,15 @@ async function createInvestmentRecord(params: {
   moonpayTransactionId?: string | undefined;
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    // Import the investment logic (we'll need to make this reusable)
+    // Import services
     const { userPortfolioService } = await import('../../../services/user-portfolio.service');
     const { nftContractService } = await import('../../../services/nft-contract.service');
     const { v4: uuidv4 } = await import('uuid');
 
     const { userId, algorandAddress, assetType, holdings, purchaseValueUsd, portfolioName, moonpayTransactionId } = params;
+
+    const calculatedHoldings = holdings;
+    const calculatedPurchaseValue = purchaseValueUsd;
 
     // Step 1: Get or create user's primary portfolio
     let userPortfolio = await userPortfolioService.getUserPrimaryPortfolio(userId);
@@ -404,72 +479,116 @@ async function createInvestmentRecord(params: {
         level: 1,
         metadataCid: 'QmDefaultPortfolioMetadata'
       });
-      
-      // NFT service methods throw on error, so if we get here, it succeeded
-      const portfolioTokenId = parseInt(portfolioResult.tokenId || '0');
-      
+
+      if (!portfolioResult.tokenId) {
+        throw new Error('Failed to create portfolio for user');
+      }
+
       userPortfolio = await userPortfolioService.storeUserPortfolio({
         userId,
-        algorandAddress,
-        portfolioTokenId: portfolioTokenId,
+        portfolioTokenId: parseInt(portfolioResult.tokenId),
         portfolioAppId: parseInt(portfolioResult.appId),
+        algorandAddress: algorandAddress,
         isPrimary: true,
         customName: portfolioName || 'My Portfolio'
       });
+
+      console.log(`Created portfolio token ${portfolioResult.tokenId} for user ${userId}`);
     }
 
-    // Step 2: Create investment record
+    // Step 2: Create investment table record
     const investmentId = uuidv4();
-    const { error: investmentError } = await supabase
+    
+    // Map asset types to target assets for database
+    const targetAssetMapping = { 1: 'BTC', 2: 'ALGO', 3: 'USDC', 4: 'SOL' };
+    const targetAsset = targetAssetMapping[assetType as keyof typeof targetAssetMapping];
+    
+    const investmentData = {
+      investment_id: investmentId,
+      user_id: userId,
+      investment_type: `${targetAsset.toLowerCase()}_purchase`,
+      target_asset: targetAsset,
+      amount_usd: (calculatedPurchaseValue / 100),
+      status: 'completed',
+      risk_acknowledged: true,
+      created_at: new Date().toISOString(),
+      moonpay_transaction_id: moonpayTransactionId || null
+    };
+
+    const { data: investment, error: investmentError } = await supabase
       .from('investments')
-      .insert({
-        investment_id: investmentId,
-        user_id: userId,
-        target_asset: assetType,
-        amount_invested_usd: purchaseValueUsd,
-        estimated_crypto_amount: holdings,
-        wallet_address: algorandAddress,
-        status: 'completed',
-        moonpay_transaction_id: moonpayTransactionId || null,
-        created_at: new Date().toISOString()
-      });
+      .insert(investmentData)
+      .select()
+      .single();
 
     if (investmentError) {
-      throw new Error(`Investment record creation failed: ${investmentError.message}`);
+      console.error('Failed to create investment record:', investmentError);
+      throw new Error('Failed to create investment record');
     }
 
-    // Step 3: Create Position NFT
+    // Step 3: Mint position NFT
     const positionResult = await nftContractService.mintPositionToken({
       owner: algorandAddress,
-      assetType: assetType,
-      holdings: BigInt(holdings),
-      purchaseValueUsd: BigInt(purchaseValueUsd)
+      assetType,
+      holdings: BigInt(calculatedHoldings),
+      purchaseValueUsd: BigInt(calculatedPurchaseValue)
     });
 
-    // NFT service methods throw on error, so if we get here, it succeeded
-
-    // Step 4: Add position to portfolio
-    if (userPortfolio && positionResult.tokenId) {
-      await nftContractService.addPositionToPortfolio({
-        portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
-        positionTokenId: BigInt(positionResult.tokenId),
-        owner: algorandAddress
-      });
+    if (!positionResult.tokenId) {
+      throw new Error('Failed to mint position token');
     }
 
-    console.log(`🎯 Investment completed successfully:`, {
-      investmentId,
-      positionTokenId: positionResult.tokenId,
-      portfolioTokenId: userPortfolio?.portfolioTokenId
+    console.log(`Minted position token ${positionResult.tokenId} for user ${userId}`);
+
+    // Step 4: Add position to user's portfolio
+    console.log(`🔍 Portfolio Debug - About to add position to portfolio:`);
+    console.log(`- Portfolio Token ID: ${userPortfolio.portfolioTokenId}`);
+    console.log(`- Position Token ID: ${positionResult.tokenId}`);
+    console.log(`- Owner Address: ${algorandAddress}`);
+    console.log(`- Portfolio App ID: ${userPortfolio.portfolioAppId}`);
+    
+    const portfolioAddResult = await nftContractService.addPositionToPortfolio({
+      portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
+      positionTokenId: BigInt(positionResult.tokenId),
+      owner: algorandAddress
     });
+
+    console.log(`Added position ${positionResult.tokenId} to portfolio ${userPortfolio.portfolioTokenId}`);
+
+    // Step 5: Return complete investment result
+    const assetTypeNames = {
+      1: 'Bitcoin',
+      2: 'Algorand',
+      3: 'USDC',
+      4: 'Solana'
+    };
 
     return {
       success: true,
       data: {
-        investmentId,
-        positionTokenId: positionResult.tokenId,
-        portfolioTokenId: userPortfolio?.portfolioTokenId,
-        transactionId: positionResult.transactionId
+        investment: {
+          positionTokenId: positionResult.tokenId,
+          portfolioTokenId: userPortfolio.portfolioTokenId.toString(),
+          assetType: assetType.toString(),
+          assetTypeName: assetTypeNames[assetType as keyof typeof assetTypeNames],
+          holdings: calculatedHoldings.toString(),
+          purchaseValueUsd: calculatedPurchaseValue.toString(),
+          owner: algorandAddress,
+          investmentId: investment.investment_id,
+          status: investment.status
+        },
+        portfolio: {
+          id: userPortfolio.id,
+          tokenId: userPortfolio.portfolioTokenId.toString(),
+          customName: userPortfolio.customName,
+          isPrimary: userPortfolio.isPrimary
+        },
+        blockchain: {
+          positionTransactionId: positionResult.transactionId,
+          portfolioTransactionId: portfolioAddResult.transactionId,
+          positionAppId: positionResult.appId,
+          portfolioAppId: userPortfolio.portfolioAppId.toString()
+        }
       }
     };
 
@@ -480,6 +599,89 @@ async function createInvestmentRecord(params: {
       error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
+}
+
+/**
+ * Find user by wallet address (Bitcoin, Algorand, or Solana)
+ * Searches the wallets table and joins with users table
+ */
+async function findUserByWalletAddress(walletAddress: string): Promise<any | null> {
+  try {
+    // Check if it's a Bitcoin address (testnet starts with tb1, mainnet with bc1, 1, or 3)
+    if (walletAddress.startsWith('tb1') || walletAddress.startsWith('bc1') || 
+        walletAddress.match(/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/)) {
+      const { data, error } = await supabase
+        .from('wallets')
+        .select('user_id, users(*)')
+        .eq('bitcoin_address', walletAddress)
+        .single();
+
+      if (!error && data) return data.users;
+    }
+
+    // Check if it's an Algorand address (58 character base32)
+    if (walletAddress.length === 58) {
+      const { data, error } = await supabase
+        .from('wallets')
+        .select('user_id, users(*)')
+        .eq('algorand_address', walletAddress)
+        .single();
+
+      if (!error && data) return data.users;
+    }
+
+    // Check if it's a Solana address (base58, 32-44 characters)
+    if (walletAddress.length >= 32 && walletAddress.length <= 44) {
+      const { data, error } = await supabase
+        .from('wallets')
+        .select('user_id, users(*)')
+        .eq('solana_address', walletAddress)
+        .single();
+
+      if (!error && data) return data.users;
+    }
+
+    console.warn('No user found for wallet address:', walletAddress);
+    return null;
+
+  } catch (error) {
+    console.error('Error finding user by wallet address:', error);
+    return null;
+  }
+}
+
+/**
+ * Create a new investment record
+ */
+async function createInvestmentRecord(params: {
+  userId: string;
+  targetAsset: string;
+  amountUsd: number;
+  moonpayTransactionId: string;
+}): Promise<Investment | null> {
+  const { userId, targetAsset, amountUsd, moonpayTransactionId } = params;
+  
+  const { data, error } = await supabase
+    .from('investments')
+    .insert({
+      user_id: userId,
+      investment_type: `${targetAsset.toLowerCase()}_purchase`,
+      target_asset: targetAsset,
+      amount_usd: amountUsd,
+      status: 'pending_payment',
+      risk_acknowledged: false,
+      moonpay_transaction_id: moonpayTransactionId,
+      created_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating investment:', error);
+    return null;
+  }
+
+  return data;
 }
 
 export default router; 
