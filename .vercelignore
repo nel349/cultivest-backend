@@ -20,8 +20,7 @@ scripts/
 # HTTP test files
 *.http
 
-# Contract development files (not needed for API)
-contracts/
+# Contract files are needed for imports - don't exclude them
 
 # Git and development tools
 .git/
