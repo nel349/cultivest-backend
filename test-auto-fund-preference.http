@@ -1,0 +1,52 @@
+### Test Auto-Fund Preference Endpoints
+### Make sure to run the SQL migration first: scripts/add-user-preferences-table.sql
+
+# Get the base URL
+@baseUrl = http://localhost:5000/api/v1
+
+# Test user ID (replace with actual user ID from your database)
+@testUserId = 045b5515-f334-436b-93b5-cc03fbcf8071
+
+### 1. Get current preference (should return false by default)
+GET {{baseUrl}}/debug/set-auto-fund-preference?userID={{testUserId}}
+
+### 2. Set auto-fund preference to true
+POST {{baseUrl}}/debug/set-auto-fund-preference
+Content-Type: application/json
+
+{
+  "userID": "{{testUserId}}",
+  "autoFundOnFailure": true
+}
+
+### 3. Get preference again (should return true)
+GET {{baseUrl}}/debug/set-auto-fund-preference?userID={{testUserId}}
+
+### 4. Set auto-fund preference to false
+POST {{baseUrl}}/debug/set-auto-fund-preference
+Content-Type: application/json
+
+{
+  "userID": "{{testUserId}}",
+  "autoFundOnFailure": false
+}
+
+### 5. Get preference again (should return false)
+GET {{baseUrl}}/debug/set-auto-fund-preference?userID={{testUserId}}
+
+### 6. Test validation - missing userID
+POST {{baseUrl}}/debug/set-auto-fund-preference
+Content-Type: application/json
+
+{
+  "autoFundOnFailure": true
+}
+
+### 7. Test validation - invalid autoFundOnFailure type
+POST {{baseUrl}}/debug/set-auto-fund-preference
+Content-Type: application/json
+
+{
+  "userID": "{{testUserId}}",
+  "autoFundOnFailure": "not_a_boolean"
+} 

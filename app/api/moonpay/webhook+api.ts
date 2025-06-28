@@ -163,40 +163,46 @@ router.post('/', async (req, res) => {
     if (!investment && status === 'pending' && isUpdatedEvent) {
       console.log('💡 Creating missing investment record for transaction:', id);
       
-      // Extract wallet address and derive user info
-      const walletAddress = data.walletAddress;
-      if (!walletAddress) {
-        console.error('❌ No wallet address in webhook data to create investment');
-        return res.status(400).json({ error: 'No wallet address provided' });
-      }
-      
-      // Look up user by wallet address
-      const user = await findUserByWalletAddress(walletAddress);
-      if (!user) {
-        console.error('❌ No user found for wallet address:', walletAddress);
-        return res.status(404).json({ error: 'User not found for wallet address' });
-      }
-      
-      // Map crypto currency to target asset
-      const targetAssetMap: { [key: string]: string } = {
-        'btc': 'BTC',
-        'algo': 'ALGO', 
-        'usdc': 'USDC',
-        'sol': 'SOL'
-      };
-      
-      const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
-      
-      // Create investment record
-      investment = await createInvestmentRecord({
-        userId: user.user_id,
-        targetAsset: targetAsset,
-        amountUsd: baseCurrencyAmount || 0,
-        moonpayTransactionId: id
-      });
-      
+      // Double-check if another webhook already created this record (race condition protection)
+      investment = await findInvestment(id);
       if (investment) {
-        console.log('✅ Created investment:', investment.investment_id);
+        console.log('🔄 Investment already exists, using existing record:', investment.investment_id);
+      } else {
+        // Extract wallet address and derive user info
+        const walletAddress = data.walletAddress;
+        if (!walletAddress) {
+          console.error('❌ No wallet address in webhook data to create investment');
+          return res.status(400).json({ error: 'No wallet address provided' });
+        }
+        
+        // Look up user by wallet address
+        const user = await findUserByWalletAddress(walletAddress);
+        if (!user) {
+          console.error('❌ No user found for wallet address:', walletAddress);
+          return res.status(404).json({ error: 'User not found for wallet address' });
+        }
+        
+        // Map crypto currency to target asset
+        const targetAssetMap: { [key: string]: string } = {
+          'btc': 'BTC',
+          'algo': 'ALGO', 
+          'usdc': 'USDC',
+          'sol': 'SOL'
+        };
+        
+        const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
+        
+        // Create investment record with duplicate protection
+        investment = await createInvestmentRecord({
+          userId: user.user_id,
+          targetAsset: targetAsset,
+          amountUsd: baseCurrencyAmount || 0,
+          moonpayTransactionId: id
+        });
+        
+        if (investment) {
+          console.log('✅ Created investment:', investment.investment_id);
+        }
       }
     }
     
@@ -204,31 +210,37 @@ router.post('/', async (req, res) => {
     if (!investment && (isFailedEvent || status === 'failed' || status === 'cancelled')) {
       console.log('💡 Creating failed investment record for transaction:', id);
       
-      // Extract wallet address and derive user info
-      const walletAddress = data.walletAddress;
-      if (walletAddress) {
-        const user = await findUserByWalletAddress(walletAddress);
-        if (user) {
-          // Map crypto currency to target asset
-          const targetAssetMap: { [key: string]: string } = {
-            'btc': 'BTC',
-            'algo': 'ALGO', 
-            'usdc': 'USDC',
-            'sol': 'SOL'
-          };
-          
-          const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
-          
-          // Create failed investment record
-          investment = await createInvestmentRecord({
-            userId: user.user_id,
-            targetAsset: targetAsset,
-            amountUsd: baseCurrencyAmount || 0,
-            moonpayTransactionId: id
-          });
-          
-          if (investment) {
-            console.log('✅ Created failed investment record:', investment.investment_id);
+      // Double-check if another webhook already created this record (race condition protection)
+      investment = await findInvestment(id);
+      if (investment) {
+        console.log('🔄 Failed investment already exists, using existing record:', investment.investment_id);
+      } else {
+        // Extract wallet address and derive user info
+        const walletAddress = data.walletAddress;
+        if (walletAddress) {
+          const user = await findUserByWalletAddress(walletAddress);
+          if (user) {
+            // Map crypto currency to target asset
+            const targetAssetMap: { [key: string]: string } = {
+              'btc': 'BTC',
+              'algo': 'ALGO', 
+              'usdc': 'USDC',
+              'sol': 'SOL'
+            };
+            
+            const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
+            
+            // Create failed investment record
+            investment = await createInvestmentRecord({
+              userId: user.user_id,
+              targetAsset: targetAsset,
+              amountUsd: baseCurrencyAmount || 0,
+              moonpayTransactionId: id
+            });
+            
+            if (investment) {
+              console.log('✅ Created failed investment record:', investment.investment_id);
+            }
           }
         }
       }
@@ -379,9 +391,131 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
   try {
     console.log(`❌ MoonPay failed for user ${investment.user_id}: ${failureReason}`);
 
-    await updateInvestment(investment.investment_id, {
-      status: 'failed'
-    });
+    // Check if auto-funding is enabled for this user in dev mode
+    const isDevMode = process.env.NODE_ENV !== 'production';
+    let autoFundOnFailure = false;
+    
+    if (isDevMode) {
+      try {
+        const { data: userPrefs } = await supabase
+          .from('user_preferences')
+          .select('auto_fund_on_failure')
+          .eq('user_id', investment.user_id)
+          .single();
+        
+        autoFundOnFailure = userPrefs?.auto_fund_on_failure || false;
+        console.log(`🔍 User ${investment.user_id} auto-fund preference: ${autoFundOnFailure}`);
+      } catch (error) {
+        console.log(`🔍 No auto-fund preference found for user ${investment.user_id}, defaulting to false`);
+        autoFundOnFailure = false;
+      }
+    }
+    
+    if (isDevMode && autoFundOnFailure) {
+      console.log('🚀 Dev mode + autoFundOnFailure detected - attempting auto-funding and investment creation');
+      
+      try {
+        // Get wallet addresses for the user
+        const { data: walletData } = await supabase
+          .from('wallets')
+          .select('bitcoin_address, algorand_address, solana_address')
+          .eq('user_id', investment.user_id)
+          .single();
+
+        if (!walletData) {
+          console.error('❌ No wallet found for user:', investment.user_id);
+          await updateInvestment(investment.investment_id, { status: 'failed' });
+          return;
+        }
+
+        // Determine target asset and wallet
+        const targetAsset = investment.target_asset?.toLowerCase() || 'btc';
+        let targetWallet = '';
+        
+        switch (targetAsset) {
+          case 'btc':
+            targetWallet = walletData.bitcoin_address;
+            break;
+          case 'algo':
+            targetWallet = walletData.algorand_address;
+            break;
+          case 'sol':
+            targetWallet = walletData.solana_address;
+            break;
+          default:
+            targetWallet = walletData.bitcoin_address; // Default to Bitcoin
+        }
+
+        if (!targetWallet) {
+          console.error(`❌ No ${targetAsset.toUpperCase()} wallet found for user:`, investment.user_id);
+          await updateInvestment(investment.investment_id, { status: 'failed' });
+          return;
+        }
+
+        // Step 1: Fund wallet via faucet (currently only Bitcoin supported)
+        if (targetAsset === 'btc') {
+          console.log('⚡ Auto-funding Bitcoin wallet via faucet...');
+          const { sendBitcoin } = await import('../../../utils/bitcoin');
+          
+          const faucetPrivateKey = process.env.BTC_TESTNET_FAUCET_PRIVATE_KEY;
+          if (!faucetPrivateKey) {
+            console.error('❌ BTC_TESTNET_FAUCET_PRIVATE_KEY not configured');
+            await updateInvestment(investment.investment_id, { status: 'failed' });
+            return;
+          }
+
+          const faucetResult = await sendBitcoin(
+            faucetPrivateKey,
+            targetWallet,
+            546 // 546 satoshis minimum
+          );
+
+          if (!faucetResult.success) {
+            console.error('❌ Auto-funding failed:', faucetResult.error);
+            await updateInvestment(investment.investment_id, { status: 'failed' });
+            return;
+          }
+
+          console.log('✅ Bitcoin wallet auto-funded via faucet:', faucetResult.mempoolUrl);
+        }
+
+        // Step 2: Create investment using existing logic
+        console.log('💼 Auto-creating investment...');
+        
+        const assetTypeMap = { 'btc': 1, 'algo': 2, 'usdc': 3, 'sol': 4 };
+        const assetType = assetTypeMap[targetAsset as keyof typeof assetTypeMap] || 1;
+        const holdings = targetAsset === 'btc' ? '546' : '1000000'; // 546 sats for BTC, 1 unit for others
+        
+        const investmentResult = await createUserInvestment({
+          userId: investment.user_id,
+          algorandAddress: walletData.algorand_address, // Algorand is used for NFTs regardless of target asset
+          assetType: assetType,
+          holdings: holdings,
+          purchaseValueUsd: Math.round((investment.amount_usd || 10) * 100), // Convert to cents
+          portfolioName: `${targetAsset.toUpperCase()} Portfolio`,
+          moonpayTransactionId: investment.moonpay_transaction_id || undefined
+        });
+
+        if (investmentResult.success) {
+          console.log('✅ Auto-investment created successfully');
+          await updateInvestment(investment.investment_id, {
+            status: 'completed'
+          });
+        } else {
+          console.error('❌ Auto-investment creation failed:', investmentResult.error);
+          await updateInvestment(investment.investment_id, { status: 'failed' });
+        }
+
+      } catch (autoFundError) {
+        console.error('❌ Auto-funding process failed:', autoFundError);
+        await updateInvestment(investment.investment_id, { status: 'failed' });
+      }
+    } else {
+      // Normal failure handling
+      await updateInvestment(investment.investment_id, {
+        status: 'failed'
+      });
+    }
 
   } catch (error) {
     console.error('❌ Error handling MoonPay failure:', error);

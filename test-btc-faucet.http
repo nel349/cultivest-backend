@@ -1,0 +1,70 @@
+### Bitcoin Faucet API Tests
+
+# Get faucet information and usage instructions
+GET http://localhost:3000/api/v1/debug/fund-btc-address
+Content-Type: application/json
+
+###
+
+# Fund a Bitcoin testnet address with 0.001 BTC
+POST http://localhost:3000/api/v1/debug/fund-btc-address
+Content-Type: application/json
+
+{
+  "toAddress": "tb1qqft50ju5qlxvucq9cts6sfm6kkh0vv0d229w0a",
+  "amount": 0.001
+}
+
+###
+
+# Fund with a smaller amount (0.0001 BTC = 10,000 satoshis)
+POST http://localhost:3000/api/v1/debug/fund-btc-address
+Content-Type: application/json
+
+{
+  "toAddress": "tb1qqft50ju5qlxvucq9cts6sfm6kkh0vv0d229w0a",
+  "amount": 0.0001
+}
+
+###
+
+# Test validation - missing address
+POST http://localhost:3000/api/v1/debug/fund-btc-address
+Content-Type: application/json
+
+{
+  "amount": 0.001
+}
+
+###
+
+# Test validation - invalid amount
+POST http://localhost:3000/api/v1/debug/fund-btc-address
+Content-Type: application/json
+
+{
+  "toAddress": "tb1qqft50ju5qlxvucq9cts6sfm6kkh0vv0d229w0a",
+  "amount": -0.001
+}
+
+###
+
+# Send the minimum possible amount (546 satoshis = 0.00000546 BTC)
+POST http://localhost:3000/api/v1/debug/fund-btc-address
+Content-Type: application/json
+
+{
+  "toAddress": "tb1qrgaz6s66pv6ymvzvn8xtp7703atujjuxf2fmmr",
+  "amount": 0.00000546
+}
+
+###
+
+# Test dust limit - too small amount (should fail)
+POST http://localhost:3000/api/v1/debug/fund-btc-address
+Content-Type: application/json
+
+{
+  "toAddress": "tb1qqft50ju5qlxvucq9cts6sfm6kkh0vv0d229w0a",
+  "amount": 0.000001
+} 
