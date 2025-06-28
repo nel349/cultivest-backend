@@ -355,9 +355,26 @@ export class NFTContractService {
         4: 'Solana'
       };
 
+      // Debug logging for asset type lookup
+      const assetTypeNumber = Number(assetType);
+      console.log(`🔍 Asset Type Debug for token ${tokenId}:`);
+      console.log(`- Raw return: ${response.return}`);
+      console.log(`- AssetType BigInt: ${assetType}`);
+      console.log(`- AssetType Number: ${assetTypeNumber}`);
+      console.log(`- Available keys: ${Object.keys(assetTypeNames)}`);
+
+      // More robust asset type name lookup
+      let assetTypeName = 'Unknown';
+      if (assetTypeNumber === 1) assetTypeName = 'Bitcoin';
+      else if (assetTypeNumber === 2) assetTypeName = 'Algorand';
+      else if (assetTypeNumber === 3) assetTypeName = 'USDC';
+      else if (assetTypeNumber === 4) assetTypeName = 'Solana';
+
+      console.log(`- Final asset type name: ${assetTypeName}`);
+
       return {
         assetType: assetType.toString(),
-        assetTypeName: assetTypeNames[Number(assetType) as keyof typeof assetTypeNames] || 'Unknown',
+        assetTypeName: assetTypeName,
         tokenId: tokenId.toString(),
         appId: this.POSITION_NFT_APP_ID
       };
@@ -733,20 +750,23 @@ export class NFTContractService {
             }
           }
 
-          const assetTypeNames = {
-            1: 'Bitcoin',
-            2: 'Algorand', 
-            3: 'USDC'
-          };
-
           const assetTypeNum = Number(assetType.return || BigInt(0));
+
+          // Robust asset type name lookup (same as getPositionAssetType method)
+          let assetTypeName = 'Unknown';
+          if (assetTypeNum === 1) assetTypeName = 'Bitcoin';
+          else if (assetTypeNum === 2) assetTypeName = 'Algorand';
+          else if (assetTypeNum === 3) assetTypeName = 'USDC';
+          else if (assetTypeNum === 4) assetTypeName = 'Solana';
+
+          console.log(`🌱 Portfolio Position Debug: Token ${tokenId}, Asset Type ${assetTypeNum} → ${assetTypeName}`);
 
           positions.push({
             tokenId: tokenId.toString(),
             owner: ownerAddress,
             ownerBase64: ownerBase64,
             assetType: assetTypeNum.toString(),
-            assetTypeName: assetTypeNames[assetTypeNum as keyof typeof assetTypeNames] || 'Unknown',
+            assetTypeName: assetTypeName,
             holdings: (holdings.return || BigInt(0)).toString(),
             purchaseValue: (purchaseValue.return || BigInt(0)).toString(),
             portfolioTokenId: portfolioTokenId.toString()
