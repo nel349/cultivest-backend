@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendBitcoin, getBitcoinBalance } from '../../../utils/bitcoin';
+import { sendBitcoin } from '../../../utils/bitcoin';
 
 const router = express.Router();
 
@@ -42,14 +42,6 @@ router.post('/', async (req, res) => {
         success: false,
         error: 'Amount too small. Minimum is 546 satoshis (0.00000546 BTC) due to dust limit'
       });
-    }
-    
-    // Check faucet balance first
-    try {
-      const faucetBalance = await getBitcoinBalance(toAddress); // This will derive the address from the private key
-      console.log(`🏦 Faucet balance check (note: this checks recipient, need to check sender)`);
-    } catch (error) {
-      console.log('⚠️ Could not check faucet balance, proceeding anyway');
     }
     
     // Send Bitcoin

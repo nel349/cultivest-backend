@@ -501,22 +501,6 @@ export const sendBitcoin = async (
 };
 
 /**
- * Get transaction hex from BlockCypher API
- */
-const getTransactionHex = async (txHash: string): Promise<string> => {
-  const networkPath = network === bitcoin.networks.testnet ? 'test3' : 'main';
-  const apiUrl = `https://api.blockcypher.com/v1/btc/${networkPath}/txs/${txHash}?includeHex=true`;
-  
-  const response = await fetch(apiUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch transaction: ${response.status}`);
-  }
-  
-  const data = await response.json() as any;
-  return data.hex;
-};
-
-/**
  * Broadcast transaction to Bitcoin network
  */
 const broadcastTransaction = async (txHex: string): Promise<void> => {
