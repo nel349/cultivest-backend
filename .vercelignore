@@ -29,4 +29,7 @@ scripts/
 .prettierrc*
 
 # Node modules (Vercel installs these)
-node_modules/ 
+node_modules/
+
+#solana
+test-ledger/

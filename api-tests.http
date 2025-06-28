@@ -1,17 +1,18 @@
 ### Cultivest Backend API Tests
 
 @baseUrl=http://localhost:3000/api/v1
+@remoteUrl=https://cultivest-backend.vercel.app/api/v1
 @auth_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ZWQ4MWQ1ZC1kMTViLTQxZjEtODI1Yy04ZWZmNTVhMWE5ZmQiLCJwaG9uZU51bWJlciI6IisxOTE1NDA4MjAzMCIsImlhdCI6MTc1MDcyNTIyMCwiZXhwIjoxNzUwODExNjIwfQ._mHDru0F7WvZMcegWagPihBElK_sFeAMUSF8zjWFlGU
 
 
 ### 1. Hello World
-GET {{baseUrl}}/hello
+GET {{remoteUrl}}/hello
 
 ### Check Twilio SMS Status
-GET {{baseUrl}}/debug/twilio-status
+GET {{remoteUrl}}/debug/twilio-status
 
 ### Check Algorand Network Status
-GET {{baseUrl}}/debug/algorand-status
+GET {{remoteUrl}}/debug/algorand-status
 
 ### Opt-in to USDCa (Debug Endpoint) - Requires Authentication
 POST {{baseUrl}}/debug/opt-in-usdca

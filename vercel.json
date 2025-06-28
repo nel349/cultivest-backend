@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api"
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "node_modules/tiny-secp256k1/lib/**"
     }
-  ]
-} 
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+}

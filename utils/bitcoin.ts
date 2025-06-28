@@ -1,17 +1,38 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
-import * as ecc from 'tiny-secp256k1';
 import CryptoJS from 'crypto-js';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
-// Initialize ECC library for Bitcoin operations
-bitcoin.initEccLib(ecc);
+// Dynamic ECC loading to handle WASM issues in serverless environments
+let ecc: any = null;
+let ECPair: any = null;
+let isEccInitialized = false;
 
-// Create ECPair factory
-const ECPair = ECPairFactory(ecc);
+const initializeEcc = async () => {
+  if (isEccInitialized) return true;
+  
+  try {
+    // Try to load tiny-secp256k1 dynamically
+    ecc = await import('tiny-secp256k1');
+    
+    // Initialize ECC library for Bitcoin operations
+    bitcoin.initEccLib(ecc);
+    
+    // Create ECPair factory
+    ECPair = ECPairFactory(ecc);
+    
+    isEccInitialized = true;
+    console.log('✅ Bitcoin ECC library initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to initialize Bitcoin ECC library:', error);
+    console.log('💡 Bitcoin functionality will be disabled in this serverless environment');
+    return false;
+  }
+};
 
 // Bitcoin configuration
 const network = process.env.BITCOIN_NETWORK === 'mainnet' 
@@ -31,9 +52,18 @@ export interface BitcoinWalletGenerationResult {
 /**
  * Generate a new Bitcoin wallet address with encrypted private key
  */
-export const generateBitcoinWallet = (): BitcoinWalletGenerationResult => {
+export const generateBitcoinWallet = async (): Promise<BitcoinWalletGenerationResult> => {
   try {
     console.log('🔐 Generating new Bitcoin wallet...');
+
+    // Initialize ECC library first
+    const eccReady = await initializeEcc();
+    if (!eccReady) {
+      return {
+        success: false,
+        error: 'Bitcoin functionality not available in this environment'
+      };
+    }
 
     // Generate a random key pair with ECC
     const keyPair = ECPair.makeRandom({ network });
@@ -118,6 +148,9 @@ export const decryptBitcoinPrivateKey = (encryptedPrivateKey: string): string =>
  * Get Bitcoin network status and test balance API
  */
 export const getBitcoinNetworkStatus = async () => {
+  // Check if ECC is available
+  const eccReady = await initializeEcc();
+  
   // Test with a known address that should have some balance
   const testAddress = network === bitcoin.networks.testnet 
     ? 'tb1q37kwfqz8rsypragqnw9pp3jkdwadqhp97z4wcq' // Known testnet address with activity
@@ -138,6 +171,7 @@ export const getBitcoinNetworkStatus = async () => {
     network: network === bitcoin.networks.testnet ? 'testnet' : 'mainnet',
     addressType: 'P2WPKH (Native SegWit)',
     encryptionEnabled: true,
+    eccAvailable: eccReady,
     balanceAPI: {
       status: balanceApiStatus,
       provider: 'BlockCypher',

@@ -18,3 +18,4 @@ thumbs.db
 .claude/
 contracts/cultivest_contract/projects/cultivest_contract-contracts/.algokit/*
 test-ledger/
+.vercel

@@ -14,7 +14,7 @@ router.get('/', async (_req, res) => {
     // Test wallet generation
     let walletGeneration = null;
     try {
-      const testWallet = generateBitcoinWallet();
+      const testWallet = await generateBitcoinWallet();
       walletGeneration = {
         success: testWallet.success,
         address: testWallet.address,

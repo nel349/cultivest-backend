@@ -72,7 +72,7 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
     console.log(`🔐 Generating new Bitcoin + Algorand + Solana wallets for user: ${userId}`);
 
     // Generate Bitcoin wallet first (Bitcoin-first approach)
-    const bitcoinWallet = generateBitcoinWallet();
+    const bitcoinWallet = await generateBitcoinWallet();
     if (!bitcoinWallet.success) {
       return {
         success: false,
