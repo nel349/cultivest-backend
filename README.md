@@ -19,24 +19,24 @@ Cultivest democratizes access to cryptocurrency investments for Gen Z, millennia
 
 ### Core Functionality
 - **User Authentication**: Phone-based signup with OTP verification
-- **Multi-Chain Wallet Management**: Custodial Bitcoin + Algorand wallets with AES-256 encryption
+- **Multi-Chain Wallet Management**: Custodial Bitcoin, Ethereum, Solana, Algorand wallets with AES-256 encryption
 - **Portfolio NFT System**: Algorand NFTs track entire investment portfolios and individual positions
-- **Bitcoin Investment**: Direct MoonPay Bitcoin purchases with custodial storage
+- **Unified Investment System**: Single endpoint handles all crypto purchases (BTC, ETH, SOL, ALGO, USDC) via MoonPay
 - **Payment Integration**: MoonPay SDK with KYC handled during payment flow
-- **Investment Tracking**: Real-time Bitcoin and Algorand balance monitoring and synchronization
+- **Investment Tracking**: Real-time multi-chain balance monitoring and synchronization
 - **Dashboard**: Multi-chain portfolio tracking, performance metrics, and gamified progress
 - **Education**: Interactive content on cryptocurrency investing and custody options
 - **AI Integration**: Claude 4-powered portfolio analysis and investment insights
-- **Chain Key Integration**: Future self-custody opt-in with secure key management
+- **Webhook Integration**: Automatic investment processing from MoonPay transactions
 
 ### Technical Features
-- **Multi-chain Support**: Bitcoin (custodial), Algorand (primary), with Ethereum/Solana (future)
-- **Payment Gateways**: MoonPay (Bitcoin purchases), Flutterwave (Nigeria)
-- **NFT Infrastructure**: Algorand-based Portfolio NFTs with metadata and visual generation
-- **Custody Management**: Secure private key storage with future self-custody migration
+- **Multi-chain Support**: Bitcoin, Ethereum, Solana, Algorand, USDC with unified investment endpoint
+- **Payment Gateways**: MoonPay (all crypto types), Flutterwave (Nigeria)
+- **NFT Infrastructure**: Algorand-based Portfolio NFTs with automatic minting on investments
+- **Custody Management**: Secure private key storage for all supported chains
 - **Compliance**: AML monitoring, transaction reporting, crypto custody regulations
 - **Security**: AES-256 encryption, secure key derivation, multi-chain signing
-- **Notifications**: Portfolio updates, transaction receipts, performance alerts
+- **Webhook Processing**: Automated investment creation from MoonPay completions
 
 ## 🛠 Tech Stack
 
@@ -58,12 +58,14 @@ cultivest-backend/
 │   │   ├── login+api.ts
 │   │   ├── signup+api.ts
 │   │   └── verify-otp+api.ts
-│   ├── deposit/                # Deposit handling
-│   │   ├── initiate+api.ts
-│   │   └── webhook+api.ts
-│   ├── investment/             # Investment management
-│   │   ├── initiate+api.ts
-│   │   └── positions+api.ts
+│   ├── users/                  # User-centric endpoints
+│   │   └── invest+api.ts       # Unified investment endpoint
+│   ├── deposit/                # Legacy deposit handling (DEPRECATED)
+│   │   ├── initiate+api.ts     # ⚠️ DEPRECATED
+│   │   └── webhook+api.ts      # MoonPay webhook handler
+│   ├── investment/             # Legacy investment endpoints (DEPRECATED)
+│   │   ├── initiate+api.ts     # ⚠️ DEPRECATED
+│   │   └── positions+api.ts    # ⚠️ DEPRECATED
 │   ├── wallet/                 # Wallet operations
 │   │   └── balance+api.ts
 │   ├── dashboard/              # Dashboard data
@@ -136,26 +138,26 @@ npm start
 - Note: KYC is handled by MoonPay during payment flow
 
 ### Wallet & Transactions
-- `POST /wallet/create` - Create multi-chain custodial wallets (Bitcoin + Algorand)
-- `GET /wallet/balance` - Get live Bitcoin and Algorand balances with sync status
+- `POST /wallet/create` - Create multi-chain custodial wallets (Bitcoin, Ethereum, Solana, Algorand)
+- `GET /wallet/balance` - Get live multi-chain balances with sync status
 - `GET /wallet/balance/live/{address}` - Direct on-chain balance check for any supported chain
 - `GET /wallet/bitcoin-address/{userID}` - Get user's Bitcoin wallet address
 - `GET /wallet/algorand-address/{userID}` - Get user's Algorand wallet address
-- `POST /deposit/initiate` - Start MoonPay Bitcoin purchase flow
-- `GET /deposit/status/{id}` - Track Bitcoin deposit progress
-- `POST /deposit/webhook` - Handle MoonPay Bitcoin purchase webhooks
+- ⚠️ `POST /deposit/initiate` - **DEPRECATED** - Use `/users/{userId}/invest` instead
+- ⚠️ `GET /deposit/status/{id}` - **DEPRECATED** - Use investment tracking endpoints
+- `POST /deposit/webhook` - Handle MoonPay transaction webhooks (all crypto types)
 - `POST /withdrawal/initiate` - Start multi-chain withdrawal process
 - `POST /withdrawal/webhook` - Handle withdrawal webhooks
 
-### Investments
-- `POST /investment/initiate` - Invest in Bitcoin or Algorand (with portfolio NFT creation)
-- `GET /investment/positions` - Get user's active investment positions across all chains
-- `GET /investment/status/:positionId` - Get detailed status and performance for specific position
-- `GET /investment/portfolio-nft/:userID` - Get user's Portfolio NFT information and metadata
-- `GET /investment/position-nfts/:portfolioID` - Get all Position NFTs for a portfolio
-- `POST /investment/transfer` - Transfer Position NFT or entire Portfolio NFT bundle
-- `POST /investment/update-metadata` - Update Portfolio/Position NFT metadata with latest values
-- `GET /investment/performance/:userID` - Get portfolio performance analytics and history
+### Investments (Unified System)
+- `POST /users/{userId}/invest` - **UNIFIED** - Invest in any crypto (BTC, ETH, SOL, ALGO, USDC) with automatic NFT creation
+- `GET /users/{userId}/investments` - Get user's investment summary and positions
+- `GET /users/{userId}/investments/{positionTokenId}` - Get specific investment position details
+- `GET /users/{userId}/portfolio` - Get user's portfolio NFT information
+- `GET /users/{userId}/portfolio/positions` - Get all position NFTs in portfolio
+- ⚠️ `POST /investment/initiate` - **DEPRECATED** - Use `/users/{userId}/invest` instead
+- ⚠️ `GET /investment/positions` - **DEPRECATED** - Use `/users/{userId}/investments` instead
+- ⚠️ `GET /investment/status/:positionId` - **DEPRECATED** - Use user-specific endpoints
 
 ### Dashboard & Data
 - `GET /dashboard/data` - Get dashboard metrics

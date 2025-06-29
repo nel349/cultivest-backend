@@ -128,10 +128,52 @@ GET {{baseUrl}}/wallet/balance
 # Authorization: Bearer {{auth_token}} // Uncomment and replace with token
 
 
-# --- Fiat-to-USDCa Deposit ---
+# --- UNIFIED CRYPTO INVESTMENT SYSTEM ---
 
-### 7. Initiate Deposit (Requires Authentication)
-# @name initiateDeposit
+### 7. Unified Crypto Investment (CURRENT) - Bitcoin
+# @name unifiedInvestmentBitcoin
+POST {{baseUrl}}/users/test-user-id/invest
+Content-Type: application/json
+
+{
+  "algorandAddress": "ALGORAND_WALLET_ADDRESS",
+  "assetType": 1,
+  "amountUSD": 100,
+  "useMoonPay": true,
+  "riskAccepted": true,
+  "portfolioName": "My Bitcoin Portfolio"
+}
+
+### 7b. Unified Crypto Investment - Ethereum
+# @name unifiedInvestmentEthereum
+POST {{baseUrl}}/users/test-user-id/invest
+Content-Type: application/json
+
+{
+  "algorandAddress": "ALGORAND_WALLET_ADDRESS",
+  "assetType": 5,
+  "amountUSD": 50,
+  "useMoonPay": true,
+  "riskAccepted": true,
+  "portfolioName": "My Ethereum Portfolio"
+}
+
+### 7c. Unified Crypto Investment - Solana
+# @name unifiedInvestmentSolana
+POST {{baseUrl}}/users/test-user-id/invest
+Content-Type: application/json
+
+{
+  "algorandAddress": "ALGORAND_WALLET_ADDRESS",
+  "assetType": 4,
+  "amountUSD": 25,
+  "useMoonPay": true,
+  "riskAccepted": true,
+  "portfolioName": "My Solana Portfolio"
+}
+
+### 7d. DEPRECATED - Legacy Deposit Endpoint (USE UNIFIED INSTEAD)
+# ⚠️ DEPRECATED: Use unified investment endpoint above
 POST {{baseUrl}}/deposit/initiate
 Content-Type: application/json
 Authorization: Bearer {{auth_token}}
@@ -162,10 +204,22 @@ Content-Type: application/json
 }
 
 
-# --- Yield Investment ---
+# --- UNIFIED INVESTMENT TRACKING ---
 
-### 9. Initiate Investment (Requires Authentication)
-# @name initiateInvestment
+### 9. Get User Investments (CURRENT)
+# @name getUserInvestments
+GET {{baseUrl}}/users/test-user-id/investments
+
+### 10. Get Specific Investment Position
+# @name getInvestmentPosition
+GET {{baseUrl}}/users/test-user-id/investments/123
+
+### 11. Get User Portfolio
+# @name getUserPortfolio
+GET {{baseUrl}}/users/test-user-id/portfolio
+
+### 12. DEPRECATED - Legacy Investment Endpoints
+# ⚠️ DEPRECATED: Use unified user investment endpoints above
 POST {{baseUrl}}/investment/initiate
 Content-Type: application/json
 # Authorization: Bearer {{auth_token}} // Uncomment and replace with token
@@ -174,8 +228,7 @@ Content-Type: application/json
   "amountUSDCa": 5
 }
 
-### 10. Get Investment Positions (Requires Authentication)
-# @name getInvestmentPositions
+# ⚠️ DEPRECATED: Use getUserInvestments instead
 GET {{baseUrl}}/investment/positions
 # Authorization: Bearer {{auth_token}} // Uncomment and replace with token
 

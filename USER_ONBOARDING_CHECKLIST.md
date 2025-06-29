@@ -25,23 +25,26 @@
 
 ### ✅ **DONE: Bitcoin-first investment system implemented**
 
-- [x] ✅ **Bitcoin Investment APIs**
-  - [x] `/api/v1/investment/bitcoin/initiate` - Direct Bitcoin purchases via MoonPay
-  - [x] `/api/v1/investment/bitcoin/positions` - Bitcoin position tracking
-  - [x] Real-time Bitcoin price integration
-  - [x] Fee calculation and Bitcoin amount estimation
+- [x] ✅ **Unified Investment APIs**
+  - [x] `/api/v1/users/{userId}/invest` - Unified endpoint for all crypto types (BTC, ETH, SOL, ALGO, USDC)
+  - [x] `/api/v1/users/{userId}/investments` - Multi-crypto position tracking
+  - [x] Real-time price integration for all supported assets
+  - [x] Fee calculation and crypto amount estimation across all types
+  - [x] Automatic NFT creation for all investment types
 
 - [x] ✅ **Multi-Chain Wallet Support**
-  - [x] Bitcoin custodial wallet generation and management
-  - [x] Algorand wallet support (for Portfolio NFTs and other crypto)
-  - [x] Secure private key encryption for both chains
-  - [x] Live balance tracking across Bitcoin and Algorand networks
+  - [x] Bitcoin, Ethereum, Solana, Algorand custodial wallet generation
+  - [x] USDC support via Algorand network
+  - [x] Secure private key encryption for all chains
+  - [x] Live balance tracking across all supported networks
+  - [x] Unified wallet creation and management
 
-- [x] ✅ **Bitcoin-First UI/UX**
-  - [x] Bitcoin investment prioritized in React Native app
-  - [x] Bitcoin balance emphasized in portfolio view
-  - [x] "Buy Bitcoin" vs "Other Crypto" clear distinction
-  - [x] Bitcoin-focused educational content
+- [x] ✅ **Multi-Crypto UI/UX**
+  - [x] Unified crypto purchase flow in React Native app
+  - [x] Support for Bitcoin, Ethereum, Solana, Algorand, USDC
+  - [x] Clear crypto selection with wallet address validation
+  - [x] Educational content for all supported cryptocurrencies
+  - [x] Simplified MoonPay integration across all crypto types
 
 ---
 
@@ -73,17 +76,19 @@
 
 ### ✅ **DONE: Direct Bitcoin purchase flow via MoonPay**
 
-- [x] ✅ **Bitcoin Purchase Flow**
-  - [x] MoonPay widget configured for direct Bitcoin purchases
-  - [x] Bitcoin address integration (custodial wallet addresses)
-  - [x] Real-time Bitcoin price and fee calculation
-  - [x] Transaction tracking from fiat → Bitcoin
+- [x] ✅ **Unified Crypto Purchase Flow**
+  - [x] MoonPay widget configured for all crypto types (BTC, ETH, SOL, ALGO, USDC)
+  - [x] Multi-chain wallet address integration
+  - [x] Real-time price and fee calculation for all assets
+  - [x] Transaction tracking from fiat → any crypto
+  - [x] Webhook-driven investment creation
 
-- [x] ✅ **Multi-Crypto Support**
-  - [x] Algorand/USDCa purchases for users wanting other crypto
-  - [x] Currency selection and routing logic
-  - [x] Unified deposit tracking system
-  - [x] Fee transparency across all crypto types
+- [x] ✅ **Comprehensive Multi-Crypto Support**
+  - [x] Bitcoin, Ethereum, Solana, Algorand, USDC purchases
+  - [x] Intelligent currency selection and routing
+  - [x] Unified investment tracking system (deprecated separate deposit system)
+  - [x] Fee transparency and calculation across all crypto types
+  - [x] Automatic Portfolio and Position NFT creation
 
 - [x] ✅ **Webhook & Status Tracking**
   - [x] MoonPay webhook handler for transaction updates
@@ -97,17 +102,17 @@
 
 ### ✅ **DONE: Bitcoin-first portfolio with multi-asset support**
 
-- [x] ✅ **Bitcoin Investment Tracking**
-  - [x] Real-time Bitcoin position values
-  - [x] Bitcoin percentage of total portfolio
-  - [x] Investment history and performance metrics
-  - [x] Bitcoin-specific achievement system
+- [x] ✅ **Multi-Crypto Investment Tracking**
+  - [x] Real-time position values for all crypto types
+  - [x] Portfolio allocation across all assets
+  - [x] Investment history and performance metrics for each crypto
+  - [x] NFT-based achievement system for all investments
 
-- [x] ✅ **Multi-Asset Portfolio View**
-  - [x] Bitcoin prominently displayed (first, larger, highlighted)
-  - [x] Other crypto assets (USDCa, ALGO) as secondary holdings
-  - [x] Portfolio allocation percentages
-  - [x] Total value calculation across all assets
+- [x] ✅ **Unified Multi-Asset Portfolio View**
+  - [x] All crypto assets displayed with equal prominence
+  - [x] Support for Bitcoin, Ethereum, Solana, Algorand, USDC holdings
+  - [x] Portfolio allocation percentages across all assets
+  - [x] Total value calculation with automatic NFT tracking
 
 - [x] ✅ **Educational Content**
   - [x] Bitcoin-focused education system (/education route)
@@ -121,23 +126,23 @@
 
 ### ✅ **DONE: Bitcoin-first API with legacy support**
 
-- [x] ✅ **Bitcoin Investment APIs**
-  - [x] `/api/v1/investment/bitcoin/initiate` - Primary Bitcoin investment endpoint
-  - [x] `/api/v1/investment/bitcoin/positions` - Bitcoin position management
-  - [x] Real Bitcoin price integration and fee calculation
-  - [x] Custodial Bitcoin wallet address management
+- [x] ✅ **Unified Investment APIs**
+  - [x] `/api/v1/users/{userId}/invest` - Primary investment endpoint for all crypto
+  - [x] `/api/v1/users/{userId}/investments` - Multi-crypto position management
+  - [x] Real price integration and fee calculation for all assets
+  - [x] Multi-chain custodial wallet address management
 
 - [x] ✅ **Legacy API Management**
-  - [x] Deprecated Tinyman/USDCa pool APIs (`/api/v1/investment/initiate`)
-  - [x] Clear deprecation notices with migration paths
+  - [x] Deprecated separate investment endpoints (`/api/v1/investment/initiate`, `/api/v1/deposit/initiate`)
+  - [x] Clear deprecation notices with migration paths to unified endpoint
   - [x] Legacy code preserved in comments for reference
-  - [x] Status 410 responses directing to new Bitcoin endpoints
+  - [x] Console warnings directing to new unified endpoint
 
 - [x] ✅ **Multi-Chain Balance APIs**
-  - [x] `/api/v1/wallet/balance` - Multi-chain balance retrieval
-  - [x] Live Bitcoin and Algorand balance queries
-  - [x] Portfolio allocation calculation
-  - [x] Bitcoin network status monitoring
+  - [x] `/api/v1/wallet/balance` - Multi-chain balance retrieval (BTC, ETH, SOL, ALGO, USDC)
+  - [x] Live balance queries across all supported networks
+  - [x] Portfolio allocation calculation for all assets
+  - [x] Multi-network status monitoring
 
 ---
 
@@ -145,23 +150,23 @@
 
 ### ✅ **DONE: React Native Bitcoin-first experience**
 
-- [x] ✅ **Bitcoin Investment Flow**
-  - [x] "Buy Bitcoin" as primary action in home screen
-  - [x] Bitcoin investment amount input and confirmation
-  - [x] Real-time Bitcoin price display
-  - [x] Direct Bitcoin purchase via MoonPay integration
+- [x] ✅ **Unified Crypto Investment Flow**
+  - [x] "Buy Crypto" with selection for Bitcoin, Ethereum, Solana, Algorand, USDC
+  - [x] Investment amount input and confirmation for any crypto
+  - [x] Real-time price display for selected cryptocurrency
+  - [x] Direct crypto purchase via MoonPay integration
 
-- [x] ✅ **Other Crypto Support**
-  - [x] "Other Crypto" category for non-Bitcoin investments
-  - [x] Clear distinction from Bitcoin investments
-  - [x] Support for stablecoins, ETH, SOL, and other cryptocurrencies
-  - [x] Routing to general crypto purchase flow
+- [x] ✅ **Comprehensive Crypto Support**
+  - [x] Unified interface supporting Bitcoin, Ethereum, Solana, Algorand, USDC
+  - [x] Seamless switching between different cryptocurrencies
+  - [x] Wallet validation for each crypto type
+  - [x] Single purchase flow for all supported assets
 
 - [x] ✅ **Portfolio Display**
-  - [x] Bitcoin balance emphasized with special styling
-  - [x] Bitcoin percentage and allocation prominently shown
-  - [x] Multi-asset breakdown with Bitcoin listed first
-  - [x] Portfolio value calculated across all holdings
+  - [x] Balanced display of all crypto holdings
+  - [x] Clear percentage and allocation for each asset type
+  - [x] Multi-asset breakdown with proper categorization
+  - [x] Portfolio value calculated across all holdings with NFT integration
 
 ---
 
@@ -264,12 +269,12 @@
 ## 🎯 **Current Status & Next Steps**
 
 ### ✅ **COMPLETED - READY FOR PRODUCTION:**
-1. ✅ **Bitcoin-First Investment Infrastructure** - Complete Bitcoin purchase and tracking
-2. ✅ **Multi-Chain Wallet System** - Bitcoin + Algorand custodial wallets
-3. ✅ **MoonPay Bitcoin Integration** - Direct Bitcoin purchases via credit card
-4. ✅ **Educational Content** - Bitcoin-focused learning system
-5. ✅ **Portfolio Management** - Bitcoin-emphasized portfolio tracking
-6. ✅ **Legacy API Cleanup** - Deprecated Tinyman references
+1. ✅ **Unified Multi-Crypto Investment Infrastructure** - Complete investment system for BTC, ETH, SOL, ALGO, USDC
+2. ✅ **Multi-Chain Wallet System** - Bitcoin, Ethereum, Solana, Algorand custodial wallets
+3. ✅ **MoonPay Multi-Crypto Integration** - Direct crypto purchases via credit card for all supported assets
+4. ✅ **Educational Content** - Comprehensive cryptocurrency learning system
+5. ✅ **Portfolio Management** - Unified portfolio tracking with automatic NFT creation
+6. ✅ **API Consolidation** - Deprecated separate endpoints in favor of unified system
 
 ### 🔄 **OPTIONAL ENHANCEMENTS:**
 1. **Portfolio NFT System** - Algorand-based achievement NFTs for Bitcoin milestones
@@ -278,4 +283,4 @@
 
 ---
 
-**🚀 PLATFORM STATUS: Bitcoin-first micro-investment platform ready for production deployment with complete Bitcoin investment infrastructure and multi-chain wallet support.**
+**🚀 PLATFORM STATUS: Multi-cryptocurrency micro-investment platform ready for production deployment with unified investment infrastructure supporting Bitcoin, Ethereum, Solana, Algorand, and USDC with automatic NFT portfolio tracking.**

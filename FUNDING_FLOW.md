@@ -1,8 +1,14 @@
-# Cultivest Funding Flow - Fiat to Dual-Asset LP Position
+# Cultivest Investment Flow - Unified Multi-Crypto System
 
-## 🎯 **Strategic Decision: Fiat → USDC/ALGO Pool Position**
+## 🎯 **Strategic Evolution: Unified Multi-Crypto Investment Platform**
 
-After discovering Tinyman's pool structure requires 50% USDC + 50% ALGO for liquidity provision, we implement a comprehensive funding and rebalancing system that converts fiat to optimal LP positions earning 0.44% APY from trading fees.
+⚠️ **IMPORTANT: This document describes the LEGACY Tinyman liquidity pool approach. The platform has evolved to a unified multi-crypto investment system.**
+
+**Current System (Updated):**
+- Unified `/users/{userId}/invest` endpoint handles all crypto types
+- Direct crypto ownership (BTC, ETH, SOL, ALGO, USDC) with automatic NFT creation
+- MoonPay integration across all supported cryptocurrencies
+- Webhook-driven investment processing
 
 ## 🔄 **Complete Funding & Investment Flow**
 
@@ -26,17 +32,26 @@ After discovering Tinyman's pool structure requires 50% USDC + 50% ALGO for liqu
 
 ## 🛠️ **Backend API Implementation**
 
-### **1. Initiate Investment Funding**
+### **1. Unified Crypto Investment (CURRENT)**
 ```http
-POST /api/v1/deposit/initiate
-Authorization: Bearer {jwt_token}
+POST /api/v1/users/{userId}/invest
 Content-Type: application/json
 
 {
-  "amountUSD": 10,
-  "investmentType": "tinyman_usdc_algo_pool"
+  "algorandAddress": "USER_ALGORAND_ADDRESS",
+  "assetType": 1,
+  "amountUSD": 100,
+  "useMoonPay": true,
+  "riskAccepted": true
 }
 ```
+
+**Asset Types:**
+- 1: Bitcoin (BTC)
+- 2: Algorand (ALGO) 
+- 3: USDC
+- 4: Solana (SOL)
+- 5: Ethereum (ETH)
 
 **Response:**
 ```json
@@ -107,14 +122,15 @@ Authorization: Bearer {jwt_token}
 
 ---
 
-## 🔄 **Auto-Rebalancing & Investment Logic**
+## 🔄 **Current Investment Logic (Updated)**
 
-### **Step 1: Optimal Asset Allocation**
-When $10 ALGO arrives from MoonPay:
-1. **Check current prices**: ALGO = $0.35, USDC = $1.00
-2. **Calculate 50/50 split**: $5 worth USDC + $5 worth ALGO
-3. **Required conversion**: Sell ~14.3 ALGO → buy ~$5 USDC
-4. **Final position**: ~$5 USDC + ~14.3 ALGO (≈$5 value)
+### **Direct Crypto Ownership Model**
+When user invests $100 in Bitcoin:
+1. **MoonPay Integration**: User pays with credit card
+2. **Webhook Processing**: MoonPay webhook triggers investment creation
+3. **NFT Creation**: Automatic Portfolio NFT and Position NFT minting
+4. **Direct Ownership**: User owns the crypto directly (no liquidity pools)
+5. **Price Tracking**: Real-time crypto price monitoring
 
 ### **Step 2: Tinyman Pool Entry**
 ```javascript
