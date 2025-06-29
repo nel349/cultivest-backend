@@ -1,0 +1,178 @@
+### Test Duplicate Prevention in MoonPay Webhook
+### Run after applying the duplicate prevention fixes
+
+# Get the base URL  
+@baseUrl = http://localhost:3000/api/v1
+
+# Test transaction ID and user
+@testTransactionId = test-duplicate-prevention-{{$randomInt}}
+@testUserId = 045b5515-f334-436b-93b5-cc03fbcf8071
+@testWalletAddress = tb1qqft50ju5qlxvucq9cts6sfm6kkh0vv0d229w0a
+
+### 1. Clean up any existing test investments first
+# You might need to run this SQL first:
+# DELETE FROM investments WHERE moonpay_transaction_id LIKE 'test-duplicate-prevention-%';
+
+### 2. Send first webhook (transaction created)
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_created",
+  "data": {
+    "id": "{{testTransactionId}}",
+    "status": "pending",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 25.00,
+    "cryptoCurrency": "btc",
+    "cryptoAmount": 0.0002
+  }
+}
+
+### 3. Send duplicate webhook (same transaction created again) - should not create duplicate
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_created", 
+  "data": {
+    "id": "{{testTransactionId}}",
+    "status": "pending",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 25.00,
+    "cryptoCurrency": "btc",
+    "cryptoAmount": 0.0002
+  }
+}
+
+### 4. Send transaction updated to completed
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_updated",
+  "data": {
+    "id": "{{testTransactionId}}",
+    "status": "completed",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 25.00,
+    "cryptoCurrency": "btc", 
+    "cryptoAmount": 0.0002
+  }
+}
+
+### 5. Send duplicate completed webhook - should skip processing
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_updated",
+  "data": {
+    "id": "{{testTransactionId}}",
+    "status": "completed",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 25.00,
+    "cryptoCurrency": "btc",
+    "cryptoAmount": 0.0002
+  }
+}
+
+### 6. Check how many investments were created for this transaction
+# Run this query to verify only 1 investment was created:
+# SELECT * FROM investments WHERE moonpay_transaction_id = '{{testTransactionId}}';
+
+### 7. Test failed transaction duplicate prevention
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_failed",
+  "data": {
+    "id": "test-failed-{{$randomInt}}",
+    "status": "failed", 
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 15.00,
+    "cryptoCurrency": "btc",
+    "failureReason": "Test failure"
+  }
+}
+
+### 8. Send same failed transaction again - should not duplicate
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_failed",
+  "data": {
+    "id": "test-failed-{{$randomInt}}",
+    "status": "failed",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 15.00,
+    "cryptoCurrency": "btc", 
+    "failureReason": "Test failure"
+  }
+}
+
+### 9. Rapid webhook simulation (multiple requests quickly)
+### Send these as fast as possible to test race conditions
+
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_created",
+  "data": {
+    "id": "rapid-test-{{$randomInt}}",
+    "status": "pending",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 30.00,
+    "cryptoCurrency": "btc"
+  }
+}
+
+###
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_updated", 
+  "data": {
+    "id": "rapid-test-{{$randomInt}}",
+    "status": "pending",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 30.00,
+    "cryptoCurrency": "btc"
+  }
+}
+
+###
+POST {{baseUrl}}/moonpay/webhook
+Content-Type: application/json
+
+{
+  "type": "transaction_updated",
+  "data": {
+    "id": "rapid-test-{{$randomInt}}",
+    "status": "completed",
+    "walletAddress": "{{testWalletAddress}}",
+    "baseCurrencyAmount": 30.00,
+    "cryptoCurrency": "btc",
+    "cryptoAmount": 0.0003
+  }
+}
+
+### 10. Verify database state after tests
+### Run these queries to check results:
+
+# Count investments per MoonPay transaction (should all be 1):
+# SELECT moonpay_transaction_id, COUNT(*) as count 
+# FROM investments 
+# WHERE moonpay_transaction_id LIKE 'test-%' OR moonpay_transaction_id LIKE 'rapid-%'
+# GROUP BY moonpay_transaction_id
+# ORDER BY count DESC;
+
+# Show all test investments:
+# SELECT investment_id, moonpay_transaction_id, status, created_at 
+# FROM investments 
+# WHERE moonpay_transaction_id LIKE 'test-%' OR moonpay_transaction_id LIKE 'rapid-%'
+# ORDER BY created_at DESC; 

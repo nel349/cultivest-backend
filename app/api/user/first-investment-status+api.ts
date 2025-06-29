@@ -18,10 +18,10 @@ router.get('/', async (req, res) => {
 
     console.log(`🔍 Checking first investment status for user: ${userID}`);
     
-    // Check user's first investment completion status
+    // Check user's first investment completion status and celebration viewed status
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('first_investment_completed_at')
+      .select('first_investment_completed_at, first_investment_celebration_viewed_at')
       .eq('user_id', userID)
       .single();
 
@@ -50,13 +50,27 @@ router.get('/', async (req, res) => {
     }
 
     const hasCompletedFirstInvestment = !!userData.first_investment_completed_at;
+    const celebrationViewed = !!userData.first_investment_celebration_viewed_at;
     const completedInvestmentsCount = investments?.length || 0;
     const firstInvestment = investments?.find(inv => inv.is_first_investment);
+
+    // Only show celebration if:
+    // 1. User has completed first investment
+    // 2. User has exactly 1 completed investment  
+    // 3. User hasn't viewed the celebration yet
+    const shouldCelebrate = hasCompletedFirstInvestment && 
+                           completedInvestmentsCount === 1 && 
+                           !celebrationViewed;
 
     const result = {
       success: true,
       data: {
         userID,
+        // New simplified field names to match client expectations
+        hasCompleted: hasCompletedFirstInvestment,
+        shouldCelebrate: shouldCelebrate,
+        totalInvestments: completedInvestmentsCount,
+        // Legacy fields for backward compatibility
         hasCompletedFirstInvestment,
         firstInvestmentCompletedAt: userData.first_investment_completed_at,
         totalCompletedInvestments: completedInvestmentsCount,
@@ -67,7 +81,7 @@ router.get('/', async (req, res) => {
           createdAt: firstInvestment.created_at
         } : null,
         celebration: {
-          shouldShowCelebration: hasCompletedFirstInvestment && completedInvestmentsCount === 1,
+          shouldShowCelebration: shouldCelebrate,
           message: hasCompletedFirstInvestment ? 
             `🎉 First investment completed on ${new Date(userData.first_investment_completed_at).toLocaleDateString()}!` :
             'No investments completed yet'
@@ -78,7 +92,8 @@ router.get('/', async (req, res) => {
     console.log(`✅ First investment status for user ${userID}:`, {
       hasCompleted: hasCompletedFirstInvestment,
       totalInvestments: completedInvestmentsCount,
-      shouldCelebrate: result.data.celebration.shouldShowCelebration
+      celebrationViewed: celebrationViewed,
+      shouldCelebrate: shouldCelebrate
     });
 
     return res.json(result);

@@ -1,0 +1,95 @@
+### Test First Investment Celebration Flow
+### Verify that celebration only shows once and gets marked as viewed
+
+# Base URL
+@baseUrl = http://localhost:3000/api/v1
+@testUserId = YOUR_USER_ID_HERE
+
+### 1. Check user's current celebration status (before any investments)
+GET {{baseUrl}}/user/first-investment-status?userID={{testUserId}}
+
+### Expected: hasCompleted: false, shouldCelebrate: false
+
+### 2. MANUAL STEP: Create a first investment for the user
+### Either use the auto-fund flow or manually insert into database:
+# INSERT INTO investments (
+#   investment_id, user_id, investment_type, target_asset, amount_usd, 
+#   status, risk_acknowledged, is_first_investment, created_at
+# ) VALUES (
+#   gen_random_uuid(), '{{testUserId}}', 'btc_purchase', 'BTC', 20.00,
+#   'completed', true, true, NOW()
+# );
+# 
+# UPDATE users SET 
+#   first_investment_completed_at = NOW(),
+#   updated_at = NOW()
+# WHERE user_id = '{{testUserId}}';
+
+### 3. Check celebration status after first investment
+GET {{baseUrl}}/user/first-investment-status?userID={{testUserId}}
+
+### Expected: hasCompleted: true, shouldCelebrate: true, celebrationViewed: false
+
+### 4. Mark celebration as viewed (simulate user viewing celebration screen)
+POST {{baseUrl}}/user/mark-celebration-completed
+Content-Type: application/json
+
+{
+  "userID": "{{testUserId}}"
+}
+
+### Expected: success: true, message: "First investment celebration marked as completed"
+
+### 5. Check celebration status after viewing (should not show again)
+GET {{baseUrl}}/user/first-investment-status?userID={{testUserId}}
+
+### Expected: hasCompleted: true, shouldCelebrate: false, celebrationViewed: true
+
+### 6. Create a second investment (should not affect celebration)
+# INSERT INTO investments (
+#   investment_id, user_id, investment_type, target_asset, amount_usd, 
+#   status, risk_acknowledged, is_first_investment, created_at
+# ) VALUES (
+#   gen_random_uuid(), '{{testUserId}}', 'algo_purchase', 'ALGO', 15.00,
+#   'completed', true, false, NOW()
+# );
+
+### 7. Check status after second investment (still should not show celebration)
+GET {{baseUrl}}/user/first-investment-status?userID={{testUserId}}
+
+### Expected: hasCompleted: true, shouldCelebrate: false, celebrationViewed: true, totalInvestments: 2
+
+### 8. Test error cases
+
+#### Missing userID in celebration endpoint
+POST {{baseUrl}}/user/mark-celebration-completed
+Content-Type: application/json
+
+{
+}
+
+### Expected: 400 error, "userID is required"
+
+#### Non-existent user
+POST {{baseUrl}}/user/mark-celebration-completed
+Content-Type: application/json
+
+{
+  "userID": "non-existent-user-id"
+}
+
+### Expected: 404 error, "User not found"
+
+### 9. Reset test data (cleanup)
+# DELETE FROM investments WHERE user_id = '{{testUserId}}';
+# UPDATE users SET 
+#   first_investment_completed_at = NULL,
+#   first_investment_celebration_viewed_at = NULL,
+#   updated_at = NOW()
+# WHERE user_id = '{{testUserId}}';
+
+### SUMMARY OF EXPECTED FLOW:
+### 1. No investment: shouldCelebrate = false
+### 2. First investment: shouldCelebrate = true  
+### 3. View celebration: shouldCelebrate = false (permanently)
+### 4. More investments: shouldCelebrate = false (celebration only shows once) 

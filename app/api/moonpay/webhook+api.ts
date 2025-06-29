@@ -156,93 +156,50 @@ router.post('/', async (req, res) => {
     const isUpdatedEvent = ['Transaction Updated', 'transaction_updated'].includes(webhookData.type);
     const isFailedEvent = ['Transaction Failed', 'transaction_failed'].includes(webhookData.type);
 
-    // Find investment by external transaction ID or MoonPay transaction ID
+    // Find or create investment by MoonPay transaction ID
     let investment = await findInvestment(externalTransactionId || id);
     
-    // If no investment found and this is a pending status update, create one
-    if (!investment && status === 'pending' && isUpdatedEvent) {
-      console.log('💡 Creating missing investment record for transaction:', id);
+    // If no investment found, create one (but only once per transaction)
+    if (!investment) {
+      console.log('💡 No existing investment found, creating one for transaction:', id);
       
-      // Double-check if another webhook already created this record (race condition protection)
-      investment = await findInvestment(id);
-      if (investment) {
-        console.log('🔄 Investment already exists, using existing record:', investment.investment_id);
-      } else {
-        // Extract wallet address and derive user info
-        const walletAddress = data.walletAddress;
-        if (!walletAddress) {
-          console.error('❌ No wallet address in webhook data to create investment');
-          return res.status(400).json({ error: 'No wallet address provided' });
-        }
-        
-        // Look up user by wallet address
-        const user = await findUserByWalletAddress(walletAddress);
-        if (!user) {
-          console.error('❌ No user found for wallet address:', walletAddress);
-          return res.status(404).json({ error: 'User not found for wallet address' });
-        }
-        
-        // Map crypto currency to target asset
-        const targetAssetMap: { [key: string]: string } = {
-          'btc': 'BTC',
-          'algo': 'ALGO', 
-          'usdc': 'USDC',
-          'sol': 'SOL'
-        };
-        
-        const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
-        
-        // Create investment record with duplicate protection
-        investment = await createInvestmentRecord({
-          userId: user.user_id,
-          targetAsset: targetAsset,
-          amountUsd: baseCurrencyAmount || 0,
-          moonpayTransactionId: id
-        });
-        
-        if (investment) {
-          console.log('✅ Created investment:', investment.investment_id);
-        }
+      // Extract wallet address and derive user info
+      const walletAddress = data.walletAddress;
+      if (!walletAddress) {
+        console.error('❌ No wallet address in webhook data to create investment');
+        return res.status(400).json({ error: 'No wallet address provided' });
       }
-    }
-    
-    // If no investment found but this is a failed/cancelled event, create a failed record
-    if (!investment && (isFailedEvent || status === 'failed' || status === 'cancelled')) {
-      console.log('💡 Creating failed investment record for transaction:', id);
       
-      // Double-check if another webhook already created this record (race condition protection)
-      investment = await findInvestment(id);
+      // Look up user by wallet address
+      const user = await findUserByWalletAddress(walletAddress);
+      if (!user) {
+        console.error('❌ No user found for wallet address:', walletAddress);
+        return res.status(404).json({ error: 'User not found for wallet address' });
+      }
+      
+      // Map crypto currency to target asset
+      const targetAssetMap: { [key: string]: string } = {
+        'btc': 'BTC',
+        'algo': 'ALGO', 
+        'usdc': 'USDC',
+        'sol': 'SOL'
+      };
+      
+      const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
+      
+      // Create investment record with UPSERT to prevent duplicates
+      investment = await upsertInvestmentRecord({
+        userId: user.user_id,
+        targetAsset: targetAsset,
+        amountUsd: baseCurrencyAmount || 0,
+        moonpayTransactionId: id,
+        initialStatus: status === 'completed' ? 'completed' : 
+                      status === 'failed' ? 'failed' :
+                      status === 'cancelled' ? 'cancelled' : 'pending_payment'
+      });
+      
       if (investment) {
-        console.log('🔄 Failed investment already exists, using existing record:', investment.investment_id);
-      } else {
-        // Extract wallet address and derive user info
-        const walletAddress = data.walletAddress;
-        if (walletAddress) {
-          const user = await findUserByWalletAddress(walletAddress);
-          if (user) {
-            // Map crypto currency to target asset
-            const targetAssetMap: { [key: string]: string } = {
-              'btc': 'BTC',
-              'algo': 'ALGO', 
-              'usdc': 'USDC',
-              'sol': 'SOL'
-            };
-            
-            const targetAsset = targetAssetMap[finalCryptoCurrency?.toLowerCase() || 'btc'] || 'BTC';
-            
-            // Create failed investment record
-            investment = await createInvestmentRecord({
-              userId: user.user_id,
-              targetAsset: targetAsset,
-              amountUsd: baseCurrencyAmount || 0,
-              moonpayTransactionId: id
-            });
-            
-            if (investment) {
-              console.log('✅ Created failed investment record:', investment.investment_id);
-            }
-          }
-        }
+        console.log('✅ Created/found investment:', investment.investment_id);
       }
     }
     
@@ -267,15 +224,30 @@ router.post('/', async (req, res) => {
       // Check the status for completion, failure, or cancellation
       switch (status) {
         case 'completed':
-          await handleMoonPayCompleted(investment, finalCryptoAmount || 0, baseCurrencyAmount || investment.amount_usd, finalCryptoCurrency || 'BTC');
+          // Prevent duplicate processing of completed transactions
+          if (investment.status === 'completed') {
+            console.log(`ℹ️ Investment already completed, skipping duplicate processing: ${investment.investment_id}`);
+          } else {
+            await handleMoonPayCompleted(investment, finalCryptoAmount || 0, baseCurrencyAmount || investment.amount_usd, finalCryptoCurrency || 'BTC');
+          }
           break;
 
         case 'failed':
-          await handleMoonPayFailed(investment, failureReason);
+          // Prevent duplicate processing of failed transactions  
+          if (investment.status === 'failed') {
+            console.log(`ℹ️ Investment already failed, skipping duplicate processing: ${investment.investment_id}`);
+          } else {
+            await handleMoonPayFailed(investment, failureReason);
+          }
           break;
 
         case 'cancelled':
-          await handleMoonPayCancelled(investment);
+          // Prevent duplicate processing of cancelled transactions
+          if (investment.status === 'cancelled') {
+            console.log(`ℹ️ Investment already cancelled, skipping duplicate processing: ${investment.investment_id}`);
+          } else {
+            await handleMoonPayCancelled(investment);
+          }
           break;
 
         default:
@@ -284,7 +256,12 @@ router.post('/', async (req, res) => {
       }
       
     } else if (isFailedEvent) {
-      await handleMoonPayFailed(investment, failureReason);
+      // Prevent duplicate processing of failed transactions
+      if (investment.status === 'failed') {
+        console.log(`ℹ️ Investment already failed, skipping duplicate failed event processing: ${investment.investment_id}`);
+      } else {
+        await handleMoonPayFailed(investment, failureReason);
+      }
     }
 
     return res.json({ success: true, message: 'Webhook processed successfully' });
@@ -414,6 +391,12 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
     if (isDevMode && autoFundOnFailure) {
       console.log('🚀 Dev mode + autoFundOnFailure detected - attempting auto-funding and investment creation');
       
+      // Check if auto-funding already completed for this transaction (prevent duplicate processing)
+      if (investment.status === 'completed') {
+        console.log('ℹ️ Investment already completed, skipping auto-funding');
+        return;
+      }
+      
       try {
         // Get wallet addresses for the user
         const { data: walletData } = await supabase
@@ -471,12 +454,17 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
           );
 
           if (!faucetResult.success) {
-            console.error('❌ Auto-funding failed:', faucetResult.error);
-            await updateInvestment(investment.investment_id, { status: 'failed' });
-            return;
+            // Check if error is due to transaction already existing (from duplicate webhook)
+            if (faucetResult.error?.includes('already exists') || faucetResult.error?.includes('Transaction with hash')) {
+              console.log('⚠️ Bitcoin transaction already exists (likely from duplicate webhook), continuing with investment creation...');
+            } else {
+              console.error('❌ Auto-funding failed:', faucetResult.error);
+              await updateInvestment(investment.investment_id, { status: 'failed' });
+              return;
+            }
+          } else {
+            console.log('✅ Bitcoin wallet auto-funded via faucet:', faucetResult.mempoolUrl);
           }
-
-          console.log('✅ Bitcoin wallet auto-funded via faucet:', faucetResult.mempoolUrl);
         }
 
         // Step 2: Create investment using existing logic
@@ -640,7 +628,7 @@ async function createUserInvestment(params: {
     const isFirstInvestment = !existingInvestments || existingInvestments.length === 0;
     console.log(`🎯 First investment check for user ${userId}: ${isFirstInvestment ? 'YES - First investment!' : 'No - Has previous investments'}`);
     
-    // Step 3: Create investment table record
+    // Step 3: Create investment table record (with duplicate protection)
     const investmentId = uuidv4();
     
     // Map asset types to target assets for database
@@ -660,15 +648,68 @@ async function createUserInvestment(params: {
       is_first_investment: isFirstInvestment
     };
 
-    const { data: investment, error: investmentError } = await supabase
-      .from('investments')
-      .insert(investmentData)
-      .select()
-      .single();
+    // Create investment with fallback logic
+    let investment;
+    
+    if (moonpayTransactionId) {
+      // First check if investment already exists (prevents duplicates)
+      const { data: existing } = await supabase
+        .from('investments')
+        .select('*')
+        .eq('moonpay_transaction_id', moonpayTransactionId)
+        .single();
+        
+      if (existing) {
+        console.log('🔄 Investment already exists for MoonPay transaction:', moonpayTransactionId);
+        investment = existing;
+      } else {
+        // Try UPSERT first (if constraint exists), fallback to INSERT
+        const { data, error: upsertError } = await supabase
+          .from('investments')
+          .upsert(investmentData, {
+            onConflict: 'moonpay_transaction_id',
+            ignoreDuplicates: false
+          })
+          .select()
+          .single();
+        
+        if (upsertError) {
+          // If constraint doesn't exist (42P10), use regular INSERT
+          if (upsertError.code === '42P10') {
+            console.log('⚠️ UPSERT constraint not found, using regular INSERT');
+            const { data: insertData, error: insertError } = await supabase
+              .from('investments')
+              .insert(investmentData)
+              .select()
+              .single();
+              
+            if (insertError) {
+              console.error('Failed to insert investment record:', insertError);
+              throw new Error('Failed to create investment record');
+            }
+            investment = insertData;
+          } else {
+            console.error('Failed to upsert investment record:', upsertError);
+            throw new Error('Failed to create investment record');
+          }
+        } else {
+          investment = data;
+        }
+      }
+    } else {
+      // No MoonPay transaction ID, use regular insert
+      const { data, error: investmentError } = await supabase
+        .from('investments')
+        .insert(investmentData)
+        .select()
+        .single();
 
-    if (investmentError) {
-      console.error('Failed to create investment record:', investmentError);
-      throw new Error('Failed to create investment record');
+      if (investmentError) {
+        console.error('Failed to create investment record:', investmentError);
+        throw new Error('Failed to create investment record');
+      }
+      
+      investment = data;
     }
 
     // Step 3.5: Update user's first investment timestamp if this is their first
@@ -822,7 +863,116 @@ async function findUserByWalletAddress(walletAddress: string): Promise<any | nul
 }
 
 /**
- * Create a new investment record
+ * Create or update investment record with UPSERT to prevent duplicates
+ */
+async function upsertInvestmentRecord(params: {
+  userId: string;
+  targetAsset: string;
+  amountUsd: number;
+  moonpayTransactionId: string;
+  initialStatus?: string;
+}): Promise<Investment | null> {
+  const { userId, targetAsset, amountUsd, moonpayTransactionId, initialStatus = 'pending_payment' } = params;
+  
+  try {
+    // First check if investment already exists
+    const existing = await findInvestment(moonpayTransactionId);
+    if (existing) {
+      console.log('🔄 Investment already exists:', existing.investment_id);
+      return existing;
+    }
+
+    // Try UPSERT first (if constraint exists)
+    const { data, error } = await supabase
+      .from('investments')
+      .upsert({
+        user_id: userId,
+        investment_type: `${targetAsset.toLowerCase()}_purchase`,
+        target_asset: targetAsset,
+        amount_usd: amountUsd,
+        status: initialStatus,
+        risk_acknowledged: false,
+        moonpay_transaction_id: moonpayTransactionId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'moonpay_transaction_id',
+        ignoreDuplicates: false // Update if exists
+      })
+      .select()
+      .single();
+
+    if (error) {
+      // If constraint doesn't exist (42P10), fall back to regular INSERT
+      if (error.code === '42P10') {
+        console.log('⚠️ Unique constraint not found, falling back to INSERT');
+        return await insertInvestmentRecord(params);
+      }
+      
+      // If unique constraint violation, try to find existing record
+      if (error.code === '23505') { // Unique constraint violation
+        console.log('🔄 Investment already exists, finding existing record for:', moonpayTransactionId);
+        return await findInvestment(moonpayTransactionId);
+      }
+      
+      console.error('Error upserting investment:', error);
+      return null;
+    }
+
+    return data;
+    
+  } catch (error) {
+    console.error('Error in upsertInvestmentRecord:', error);
+    
+    // Fallback: try regular insert
+    console.log('🔄 Fallback: trying regular insert');
+    return await insertInvestmentRecord(params);
+  }
+}
+
+/**
+ * Simple INSERT for investment record (fallback when UPSERT fails)
+ */
+async function insertInvestmentRecord(params: {
+  userId: string;
+  targetAsset: string;
+  amountUsd: number;
+  moonpayTransactionId: string;
+  initialStatus?: string;
+}): Promise<Investment | null> {
+  const { userId, targetAsset, amountUsd, moonpayTransactionId, initialStatus = 'pending_payment' } = params;
+  
+  try {
+    const { data, error } = await supabase
+      .from('investments')
+      .insert({
+        user_id: userId,
+        investment_type: `${targetAsset.toLowerCase()}_purchase`,
+        target_asset: targetAsset,
+        amount_usd: amountUsd,
+        status: initialStatus,
+        risk_acknowledged: false,
+        moonpay_transaction_id: moonpayTransactionId,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error inserting investment:', error);
+      return null;
+    }
+
+    return data;
+    
+  } catch (error) {
+    console.error('Error in insertInvestmentRecord:', error);
+    return null;
+  }
+}
+
+/**
+ * Create a new investment record (legacy function, use upsertInvestmentRecord instead)
  */
 async function createInvestmentRecord(params: {
   userId: string;
@@ -830,29 +980,10 @@ async function createInvestmentRecord(params: {
   amountUsd: number;
   moonpayTransactionId: string;
 }): Promise<Investment | null> {
-  const { userId, targetAsset, amountUsd, moonpayTransactionId } = params;
-  
-  const { data, error } = await supabase
-    .from('investments')
-    .insert({
-      user_id: userId,
-      investment_type: `${targetAsset.toLowerCase()}_purchase`,
-      target_asset: targetAsset,
-      amount_usd: amountUsd,
-      status: 'pending_payment',
-      risk_acknowledged: false,
-      moonpay_transaction_id: moonpayTransactionId,
-      created_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating investment:', error);
-    return null;
-  }
-
-  return data;
+  return upsertInvestmentRecord({
+    ...params,
+    initialStatus: 'pending_payment'
+  });
 }
 
 export default router; 

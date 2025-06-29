@@ -11,6 +11,7 @@ import notificationsSendDailyYieldRoutes from './app/api/notifications/send-dail
 import transactionReceiptSendRoutes from './app/api/transaction/receipt/send+api';
 import userProfileRoutes from './app/api/user/profile+api';
 import userFirstInvestmentStatusRoutes from './app/api/user/first-investment-status+api';
+import userMarkCelebrationCompletedRoutes from './app/api/user/mark-celebration-completed+api';
 import walletBalanceRoutes from './app/api/wallet/balance+api';
 import dashboardDataRoutes from './app/api/dashboard/data+api';
 import depositInitiateRoutes from './app/api/deposit/initiate+api';
@@ -106,6 +107,7 @@ apiRouter.use('/notifications/send-daily-yield', notificationsSendDailyYieldRout
 apiRouter.use('/transaction/receipt/send', transactionReceiptSendRoutes);
 apiRouter.use('/user/profile', userProfileRoutes);
 apiRouter.use('/user/first-investment-status', userFirstInvestmentStatusRoutes);
+apiRouter.use('/user/mark-celebration-completed', userMarkCelebrationCompletedRoutes);
 apiRouter.use('/wallet/balance', walletBalanceRoutes);
 apiRouter.use('/wallet/mnemonic', walletMnemonicRoutes);
 apiRouter.use('/dashboard/data', dashboardDataRoutes);
