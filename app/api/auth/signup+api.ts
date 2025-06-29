@@ -193,7 +193,8 @@ router.post('/', async (req, res) => {
           smsProvider: smsResult.provider,
           warning: 'SMS service in development mode - check console for OTP code',
           developmentMode: true,
-          consoleOTP: otpCode // Only in development
+          consoleOTP: otpCode, // Include OTP in response for development
+          otpCode: otpCode // Also include as otpCode for auto-fill
         });
       } else {
         // Real SMS failure - return error to user
@@ -208,14 +209,20 @@ router.post('/', async (req, res) => {
       console.log(`✅ SMS sent via ${smsResult.provider} - MessageID: ${smsResult.messageId}`);
     }
 
+    // SMS sent successfully
+    const isDev = process.env.NODE_ENV === 'development';
     return res.json({
       success: true,
       message: 'OTP sent successfully',
       userID: userId,
       otpSent: true,
       smsProvider: smsResult.provider,
-      // In development, include OTP for testing (REMOVE IN PRODUCTION)
-      ...(process.env.NODE_ENV === 'development' && { otp: otpCode })
+      // Include OTP in development mode for auto-fill testing
+      ...(isDev && { 
+        consoleOTP: otpCode,
+        otpCode: otpCode,
+        developmentMode: true 
+      })
     });
 
   } catch (error) {
