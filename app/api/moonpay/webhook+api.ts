@@ -392,8 +392,10 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
       console.log('🚀 Dev mode + autoFundOnFailure detected - attempting auto-funding and investment creation');
       
       // Check if auto-funding already completed for this transaction (prevent duplicate processing)
-      if (investment.status === 'completed') {
-        console.log('ℹ️ Investment already completed, skipping auto-funding');
+      // Get fresh status from database to avoid race conditions
+      const freshInvestment = await findInvestment(investment.moonpay_transaction_id);
+      if (freshInvestment && freshInvestment.status === 'completed') {
+        console.log('ℹ️ Investment already completed (fresh check), skipping auto-funding');
         return;
       }
       
@@ -661,6 +663,24 @@ async function createUserInvestment(params: {
         
       if (existing) {
         console.log('🔄 Investment already exists for MoonPay transaction:', moonpayTransactionId);
+        console.log('🔍 Existing investment status:', existing.status);
+        
+        // If investment already exists and has been completed, don't create new NFTs
+        if (existing.status === 'completed') {
+          console.log('✅ Investment already completed with NFTs, skipping duplicate processing');
+          return {
+            success: true,
+            data: {
+              investment: {
+                investmentId: existing.investment_id,
+                status: existing.status,
+                isFirstInvestment: isFirstInvestment,
+                message: 'Investment already processed'
+              }
+            }
+          };
+        }
+        
         investment = existing;
       } else {
         // Try UPSERT first (if constraint exists), fallback to INSERT
