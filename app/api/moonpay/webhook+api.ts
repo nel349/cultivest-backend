@@ -1039,6 +1039,20 @@ async function upsertInvestmentRecord(params: {
       return existing;
     }
 
+    // Check if this is user's first investment (same logic as createUserInvestment)
+    const { data: existingInvestments, error: investmentCheckError } = await supabase
+      .from('investments')
+      .select('investment_id, status, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'completed');
+    
+    if (investmentCheckError) {
+      console.error('Error checking existing investments for upsert:', investmentCheckError);
+    }
+    
+    const isFirstInvestment = !existingInvestments || existingInvestments.length === 0;
+    console.log(`🎯 First investment check in upsert for user ${userId}: ${isFirstInvestment ? 'YES' : 'NO'} (${existingInvestments?.length || 0} completed investments)`);
+
     // Try UPSERT first (if constraint exists)
     const { data, error } = await supabase
       .from('investments')
@@ -1050,6 +1064,7 @@ async function upsertInvestmentRecord(params: {
         status: initialStatus,
         risk_acknowledged: false,
         moonpay_transaction_id: moonpayTransactionId,
+        is_first_investment: isFirstInvestment,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }, {
@@ -1100,6 +1115,20 @@ async function insertInvestmentRecord(params: {
   const { userId, targetAsset, amountUsd, moonpayTransactionId, initialStatus = 'pending_payment' } = params;
   
   try {
+    // Check if this is user's first investment (same logic as createUserInvestment)
+    const { data: existingInvestments, error: investmentCheckError } = await supabase
+      .from('investments')
+      .select('investment_id, status, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'completed');
+    
+    if (investmentCheckError) {
+      console.error('Error checking existing investments for insert:', investmentCheckError);
+    }
+    
+    const isFirstInvestment = !existingInvestments || existingInvestments.length === 0;
+    console.log(`🎯 First investment check in insert for user ${userId}: ${isFirstInvestment ? 'YES' : 'NO'} (${existingInvestments?.length || 0} completed investments)`);
+
     const { data, error } = await supabase
       .from('investments')
       .insert({
@@ -1110,6 +1139,7 @@ async function insertInvestmentRecord(params: {
         status: initialStatus,
         risk_acknowledged: false,
         moonpay_transaction_id: moonpayTransactionId,
+        is_first_investment: isFirstInvestment,
         created_at: new Date().toISOString()
       })
       .select()
