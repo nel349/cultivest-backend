@@ -396,7 +396,8 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
         return;
       }
       
-      // Also check if investment is currently being processed to prevent race conditions
+      // Check if investment is currently being processed to prevent race conditions
+      // BUT: Always allow failed transactions to proceed with auto-funding (this is recovery logic)
       if (freshInvestment && freshInvestment.status === 'processing') {
         console.log('⚠️ Investment already in processing state, checking for concurrent webhook processing');
         
@@ -405,8 +406,9 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
         const timeSinceProcessing = Date.now() - processingStartTime.getTime();
         
         if (timeSinceProcessing < 30000) { // Less than 30 seconds
-          console.log('🔄 Investment processing started recently, likely concurrent webhook - skipping duplicate processing');
-          return;
+          console.log('🔄 Investment processing started recently, but this is a FAILED transaction - proceeding with auto-funding recovery');
+          console.log('💡 Auto-funding for failed transactions always proceeds regardless of recent processing');
+          // DO NOT return here - let failed transactions proceed with auto-funding
         }
       }
       
