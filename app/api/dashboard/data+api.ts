@@ -20,10 +20,10 @@ router.get('/', async (req, res) => {
 
     console.log(`📊 Fetching dashboard data for user: ${userId}`);
 
-    // Fetch user profile to get basic user data and wallet address if available
+    // Fetch user profile to get basic user data
     const { data: userProfile, error: userProfileError } = await supabase
       .from('users')
-      .select('user_id, email, name, phone_number, algorand_address, solana_address, bitcoin_address, first_investment_completed_at, first_investment_celebration_viewed_at')
+      .select('user_id, email, name, phone_number, first_investment_completed_at, first_investment_celebration_viewed_at')
       .eq('user_id', userId)
       .single();
 
@@ -34,6 +34,25 @@ router.get('/', async (req, res) => {
         error: 'User not found'
       });
     }
+
+    // Fetch user's wallet addresses separately
+    const { data: userWallet, error: walletError } = await supabase
+      .from('wallets')
+      .select('algorand_address, bitcoin_address, solana_address')
+      .eq('user_id', userId)
+      .single();
+
+    if (walletError) {
+      console.warn('No wallet found for user:', walletError);
+    }
+
+    // Combine user profile with wallet addresses
+    const userWithWallet = {
+      ...userProfile,
+      algorand_address: userWallet?.algorand_address || null,
+      bitcoin_address: userWallet?.bitcoin_address || null,
+      solana_address: userWallet?.solana_address || null
+    };
 
     // Fetch user's primary portfolio
     const userPortfolio = await userPortfolioService.getUserPrimaryPortfolio(userId as string);
@@ -99,32 +118,32 @@ router.get('/', async (req, res) => {
 
     // Fetch live wallet balances from chains/services
     let btcBalance = 0;
-    if (userProfile.bitcoin_address) {
+    if (userWithWallet.bitcoin_address) {
       try {
-        btcBalance = await getBitcoinBalance(userProfile.bitcoin_address);
+        btcBalance = await getBitcoinBalance(userWithWallet.bitcoin_address);
       } catch (e) {
-        console.error(`Error fetching BTC balance for ${userProfile.bitcoin_address}:`, e);
+        console.error(`Error fetching BTC balance for ${userWithWallet.bitcoin_address}:`, e);
       }
     }
 
     let algoBalance = 0; // Set to 0 as algorand.ts is not found
     let usdcaBalance = 0; // Set to 0 as algorand.ts is not found
-    // if (userProfile.algorand_address) {
+    // if (userWithWallet.algorand_address) {
     //   try {
-    //     const algoBalances = await getAlgorandAccountBalance(userProfile.algorand_address);
+    //     const algoBalances = await getAlgorandAccountBalance(userWithWallet.algorand_address);
     //     algoBalance = algoBalances.algo;
     //     usdcaBalance = algoBalances.usdca;
     //   } catch (e) {
-    //     console.error(`Error fetching ALGO/USDCa balance for ${userProfile.algorand_address}:`, e);
+    //     console.error(`Error fetching ALGO/USDCa balance for ${userWithWallet.algorand_address}:`, e);
     //   }
     // }
 
     let solBalance = 0;
-    if (userProfile.solana_address) {
+    if (userWithWallet.solana_address) {
       try {
-        solBalance = await getSolanaBalance(userProfile.solana_address);
+        solBalance = await getSolanaBalance(userWithWallet.solana_address);
       } catch (e) {
-        console.error(`Error fetching SOL balance for ${userProfile.solana_address}:`, e);
+        console.error(`Error fetching SOL balance for ${userWithWallet.solana_address}:`, e);
       }
     }
 
@@ -180,15 +199,15 @@ router.get('/', async (req, res) => {
         ],
       },
       userProfile: { // Include basic user profile info
-        userId: userProfile.user_id,
-        name: userProfile.name,
-        email: userProfile.email,
-        phoneNumber: userProfile.phone_number,
-        algorandAddress: userProfile.algorand_address,
-        solanaAddress: userProfile.solana_address,
-        bitcoinAddress: userProfile.bitcoin_address,
-        firstInvestmentCompletedAt: userProfile.first_investment_completed_at,
-        firstInvestmentCelebrationViewedAt: userProfile.first_investment_celebration_viewed_at,
+        userId: userWithWallet.user_id,
+        name: userWithWallet.name,
+        email: userWithWallet.email,
+        phoneNumber: userWithWallet.phone_number,
+        algorandAddress: userWithWallet.algorand_address,
+        solanaAddress: userWithWallet.solana_address,
+        bitcoinAddress: userWithWallet.bitcoin_address,
+        firstInvestmentCompletedAt: userWithWallet.first_investment_completed_at,
+        firstInvestmentCelebrationViewedAt: userWithWallet.first_investment_celebration_viewed_at,
       }
     };
 
