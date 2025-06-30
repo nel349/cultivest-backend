@@ -82,6 +82,66 @@ export class NFTContractService {
     }
   }
 
+  /**
+   * Ensure minter account has sufficient balance for NFT operations
+   * Funds the account if balance is too low
+   */
+  private async ensureMinterHasSufficientBalance(minterAccount: algosdk.Account): Promise<void> {
+    try {
+      const minterAddress = minterAccount.addr;
+      
+      // Check current balance using legacy algod client for compatibility
+      const algodUrl = process.env.ALGORAND_ALGOD_URL || 'https://testnet-api.algonode.cloud';
+      const algodToken = process.env.ALGORAND_ALGOD_TOKEN || '';
+      const algodClient = new algosdk.Algodv2(algodToken, algodUrl, '');
+      
+      const accountInfo = await algodClient.accountInformation(minterAddress).do();
+      const currentBalance = Number(accountInfo.amount); // in microAlgos
+      const requiredBalance = 2_000_000; // 2 ALGO in microAlgos
+      
+      console.log(`💰 Minter account ${minterAddress} balance: ${currentBalance} microAlgos (${currentBalance / 1_000_000} ALGO)`);
+      
+      if (currentBalance < requiredBalance) {
+        console.log(`⚠️ Minter account balance too low, need ${requiredBalance} microAlgos, funding...`);
+        
+        // Use testnet dispenser to fund the minter account 
+        const dispenserMnemonic = process.env.TESTNET_DISPENSER_MNEMONIC || process.env.DEPLOYER_MNEMONIC;
+        
+        if (dispenserMnemonic) {
+          const dispenserAccount = algosdk.mnemonicToSecretKey(dispenserMnemonic);
+          const fundAmount = 5_000_000; // 5 ALGO
+          
+          console.log(`💸 Funding minter account with ${fundAmount} microAlgos (${fundAmount / 1_000_000} ALGO)`);
+          
+          const params = await algodClient.getTransactionParams().do();
+          const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+            sender: dispenserAccount.addr,
+            receiver: minterAddress,
+            amount: fundAmount,
+            suggestedParams: params,
+          });
+          
+          const signedTxn = txn.signTxn(dispenserAccount.sk);
+          const txResponse = await algodClient.sendRawTransaction(signedTxn).do();
+          
+          // Wait for confirmation
+          await algosdk.waitForConfirmation(algodClient, txResponse.txid, 4);
+          
+          console.log(`✅ Minter account funded successfully: ${txResponse.txid}`);
+        } else {
+          console.error('❌ No dispenser available to fund minter account');
+          throw new Error('Minter account has insufficient balance and no dispenser available');
+        }
+      } else {
+        console.log(`✅ Minter account has sufficient balance`);
+      }
+    } catch (error) {
+      console.error('Error checking/funding minter account:', error);
+      // Don't throw - continue with transaction and let it fail if needed
+      console.log('⚠️ Continuing with existing minter balance...');
+    }
+  }
+
   // Get user's signing account (same as existing pattern)
   private async getUserSigningAccount(userId: string) {
     try {
@@ -134,6 +194,9 @@ export class NFTContractService {
     try {
       // Use authorized minter account to sign the transaction
       const minterAccount = this.getAuthorizedMinterAccount();
+      
+      // Ensure minter has sufficient balance for NFT operations
+      await this.ensureMinterHasSufficientBalance(minterAccount);
       
       this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(minterAccount));
       
@@ -487,6 +550,9 @@ export class NFTContractService {
     try {
       // Use authorized minter account to sign the transaction
       const minterAccount = this.getAuthorizedMinterAccount();
+      
+      // Ensure minter has sufficient balance for NFT operations
+      await this.ensureMinterHasSufficientBalance(minterAccount);
       
       this.algorand.setDefaultSigner(algosdk.makeBasicAccountTransactionSigner(minterAccount));
       
