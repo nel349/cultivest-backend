@@ -368,28 +368,25 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
   try {
     console.log(`❌ MoonPay failed for user ${investment.user_id}: ${failureReason}`);
 
-    // Check if auto-funding is enabled for this user in dev mode
-    const isDevMode = process.env.NODE_ENV !== 'production';
-    let autoFundOnFailure = false;
+    // Check if auto-funding is enabled for this user (defaults to true for investment processing)
+    let autoFundOnFailure = true; // Default to true since this handles the main investment logic
     
-    if (isDevMode) {
-      try {
-        const { data: userPrefs } = await supabase
-          .from('user_preferences')
-          .select('auto_fund_on_failure')
-          .eq('user_id', investment.user_id)
-          .single();
-        
-        autoFundOnFailure = userPrefs?.auto_fund_on_failure || false;
-        console.log(`🔍 User ${investment.user_id} auto-fund preference: ${autoFundOnFailure}`);
-      } catch (error) {
-        console.log(`🔍 No auto-fund preference found for user ${investment.user_id}, defaulting to false`);
-        autoFundOnFailure = false;
-      }
+    try {
+      const { data: userPrefs } = await supabase
+        .from('user_preferences')
+        .select('auto_fund_on_failure')
+        .eq('user_id', investment.user_id)
+        .single();
+      
+      autoFundOnFailure = userPrefs?.auto_fund_on_failure ?? true; // Default to true
+      console.log(`🔍 User ${investment.user_id} auto-fund preference: ${autoFundOnFailure}`);
+    } catch (error) {
+      console.log(`🔍 No auto-fund preference found for user ${investment.user_id}, defaulting to true`);
+      autoFundOnFailure = true;
     }
     
-    if (isDevMode && autoFundOnFailure) {
-      console.log('🚀 Dev mode + autoFundOnFailure detected - attempting auto-funding and investment creation');
+    if (autoFundOnFailure) {
+              console.log('🚀 Auto-funding enabled - attempting investment processing and creation');
       
       // Check if auto-funding already completed for this transaction (prevent duplicate processing)
       // Get fresh status from database to avoid race conditions
