@@ -387,7 +387,7 @@ const fundAlgorandWallet = async (algorandAddress: string): Promise<void> => {
       }
       
       // Create and send funding transaction
-      const fundingAmount = 1000000; // 1 ALGO in microALGO for testnet
+      const fundingAmount = 1500000; // 1.5 ALGO in microALGO for testnet (increased from 1.0 to prevent NFT minting balance issues)
       const params = await algodClient.getTransactionParams().do();
       
       const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
