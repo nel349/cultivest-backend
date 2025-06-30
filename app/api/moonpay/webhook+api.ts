@@ -399,9 +399,29 @@ async function handleMoonPayFailed(investment: Investment, failureReason?: strin
         return;
       }
       
-      try {
-        // Get wallet addresses for the user
-        const { data: walletData } = await supabase
+      // Also check if investment is currently being processed to prevent race conditions
+      if (freshInvestment && freshInvestment.status === 'processing') {
+        console.log('⚠️ Investment already in processing state, checking for concurrent webhook processing');
+        
+        // Check if this processing started very recently (within last 30 seconds)
+        const processingStartTime = new Date(freshInvestment.updated_at || freshInvestment.created_at);
+        const timeSinceProcessing = Date.now() - processingStartTime.getTime();
+        
+        if (timeSinceProcessing < 30000) { // Less than 30 seconds
+          console.log('🔄 Investment processing started recently, likely concurrent webhook - skipping duplicate processing');
+          return;
+        }
+      }
+      
+              try {
+          // Mark investment as processing to prevent concurrent webhook processing
+          await updateInvestment(investment.investment_id, { 
+            status: 'processing',
+            updated_at: new Date().toISOString()
+          });
+          
+          // Get wallet addresses for the user
+          const { data: walletData } = await supabase
           .from('wallets')
           .select('bitcoin_address, algorand_address, solana_address')
           .eq('user_id', investment.user_id)
@@ -681,6 +701,33 @@ async function createUserInvestment(params: {
           };
         }
         
+        // If investment is in processing status, it might be a duplicate webhook - check for existing NFTs
+        if (existing.status === 'processing') {
+          console.log('⚠️ Investment already in processing state, checking for existing NFTs to prevent duplicates');
+          
+          // Check if NFTs already exist for this user and transaction
+          const { data: existingNFTs } = await supabase
+            .from('investment_nfts')
+            .select('*')
+            .eq('investment_id', existing.investment_id)
+            .limit(1);
+          
+          if (existingNFTs && existingNFTs.length > 0) {
+            console.log('✅ NFTs already exist for this investment, skipping duplicate processing');
+            return {
+              success: true,
+              data: {
+                investment: {
+                  investmentId: existing.investment_id,
+                  status: existing.status,
+                  isFirstInvestment: isFirstInvestment,
+                  message: 'Investment already being processed'
+                }
+              }
+            };
+          }
+        }
+        
         investment = existing;
       } else {
         // Try UPSERT first (if constraint exists), fallback to INSERT
@@ -751,34 +798,79 @@ async function createUserInvestment(params: {
       }
     }
 
-    // Step 4: Mint position NFT
-    const positionResult = await nftContractService.mintPositionToken({
-      owner: algorandAddress,
-      assetType,
-      holdings: BigInt(calculatedHoldings),
-      purchaseValueUsd: BigInt(calculatedPurchaseValue)
-    });
+    // Step 4: Mint position NFT (with duplicate transaction handling)
+    let positionResult;
+    try {
+      positionResult = await nftContractService.mintPositionToken({
+        owner: algorandAddress,
+        assetType,
+        holdings: BigInt(calculatedHoldings),
+        purchaseValueUsd: BigInt(calculatedPurchaseValue)
+      });
 
-    if (!positionResult.tokenId) {
-      throw new Error('Failed to mint position token');
+      if (!positionResult.tokenId) {
+        throw new Error('Failed to mint position token');
+      }
+
+      console.log(`Minted position token ${positionResult.tokenId} for user ${userId}`);
+    } catch (mintError: any) {
+      // Handle duplicate transaction error gracefully
+      if (mintError?.message?.includes('transaction already in ledger') || 
+          mintError?.message?.includes('TransactionPool.Remember')) {
+        console.log('⚠️ Position token transaction already in ledger - this is likely a duplicate webhook processing');
+        
+        // Try to find the existing NFT for this investment
+        const { data: existingNFT } = await supabase
+          .from('investment_nfts')
+          .select('position_token_id, portfolio_token_id')
+          .eq('investment_id', investment.investment_id)
+          .single();
+        
+        if (existingNFT) {
+          console.log('✅ Found existing NFT, using existing token IDs');
+          positionResult = {
+            tokenId: existingNFT.position_token_id.toString(),
+            transactionId: 'existing-transaction',
+            appId: process.env.POSITION_NFT_APP_ID || '1230'
+          };
+        } else {
+          // If we can't find existing NFT, this might be a real issue
+          console.error('❌ Cannot find existing NFT after duplicate transaction error');
+          throw new Error('Unable to complete investment due to duplicate transaction handling');
+        }
+      } else {
+        throw mintError; // Re-throw other errors
+      }
     }
 
-    console.log(`Minted position token ${positionResult.tokenId} for user ${userId}`);
-
-    // Step 5: Add position to user's portfolio
+    // Step 5: Add position to user's portfolio (with duplicate transaction handling)
     console.log(`🔍 Portfolio Debug - About to add position to portfolio:`);
     console.log(`- Portfolio Token ID: ${userPortfolio.portfolioTokenId}`);
     console.log(`- Position Token ID: ${positionResult.tokenId}`);
     console.log(`- Owner Address: ${algorandAddress}`);
     console.log(`- Portfolio App ID: ${userPortfolio.portfolioAppId}`);
     
-    const portfolioAddResult = await nftContractService.addPositionToPortfolio({
-      portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
-      positionTokenId: BigInt(positionResult.tokenId),
-      owner: algorandAddress
-    });
+    let portfolioAddResult;
+    try {
+      portfolioAddResult = await nftContractService.addPositionToPortfolio({
+        portfolioTokenId: BigInt(userPortfolio.portfolioTokenId),
+        positionTokenId: BigInt(positionResult.tokenId),
+        owner: algorandAddress
+      });
 
-    console.log(`Added position ${positionResult.tokenId} to portfolio ${userPortfolio.portfolioTokenId}`);
+      console.log(`Added position ${positionResult.tokenId} to portfolio ${userPortfolio.portfolioTokenId}`);
+    } catch (portfolioError: any) {
+      // Handle duplicate transaction error gracefully
+      if (portfolioError?.message?.includes('transaction already in ledger') || 
+          portfolioError?.message?.includes('TransactionPool.Remember')) {
+        console.log('⚠️ Portfolio transaction already in ledger - continuing with existing state');
+        portfolioAddResult = {
+          transactionId: 'existing-transaction'
+        };
+      } else {
+        throw portfolioError; // Re-throw other errors
+      }
+    }
 
     // Step 6: Return complete investment result
     const assetTypeNames = {
