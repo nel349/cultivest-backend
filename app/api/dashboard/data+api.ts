@@ -1,5 +1,4 @@
 import express from 'express';
-import { supabase } from '../../../utils/supabase';
 import { userPortfolioService } from '../../../services/user-portfolio.service';
 import { nftContractService } from '../../../services/nft-contract.service';
 
@@ -58,18 +57,6 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Get user's actual wallet balance using the same function as wallet API
-    const { getUserWallet } = await import('../../../utils/wallet');
-    const walletInfo = await getUserWallet(userID as string, true); // includeLiveBalance = true
-    
-    // Get current wallet balances from live balance
-    const walletBalances = {
-      btc: walletInfo?.onChainBalance?.btc || walletInfo?.balance?.btc || 0,
-      algo: walletInfo?.onChainBalance?.algo || walletInfo?.balance?.algo || 0,
-      usdca: walletInfo?.onChainBalance?.usdca || walletInfo?.balance?.usdca || 0,
-      sol: walletInfo?.onChainBalance?.sol || walletInfo?.balance?.sol || 0
-    };
-
     // Calculate investment totals from NFT positions (primary source of truth)
     let bitcoinFromPositions = 0;
     let solanaFromPositions = 0;
@@ -79,7 +66,6 @@ router.get('/', async (req, res) => {
     if (portfolioData?.positions) {
       portfolioData.positions.forEach(position => {
         const valueInDollars = parseFloat(position.purchaseValue || '0') / 100; // Convert cents to dollars
-        const holdings = parseFloat(position.holdings || '0');
         
         if (position.assetTypeName === 'Bitcoin') {
           bitcoinFromPositions += valueInDollars;

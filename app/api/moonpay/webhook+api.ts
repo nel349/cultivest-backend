@@ -991,19 +991,4 @@ async function insertInvestmentRecord(params: {
   }
 }
 
-/**
- * Create a new investment record (legacy function, use upsertInvestmentRecord instead)
- */
-async function createInvestmentRecord(params: {
-  userId: string;
-  targetAsset: string;
-  amountUsd: number;
-  moonpayTransactionId: string;
-}): Promise<Investment | null> {
-  return upsertInvestmentRecord({
-    ...params,
-    initialStatus: 'pending_payment'
-  });
-}
-
 export default router; 
