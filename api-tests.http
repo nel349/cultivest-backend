@@ -58,7 +58,7 @@ GET {{baseUrl}}/debug/algorand-status
 GET {{baseUrl}}/wallet/balance?userId=5f5ee119-9f95-4b86-863c-44944507eced
 
 ### Wallet Balance (With Live On-Chain Data)
-GET {{baseUrl}}/wallet/balance?userId=5f5ee119-9f95-4b86-863c-44944507eced&live=true
+GET {{baseUrl}}/wallet/balance?userId=045b5515-f334-436b-93b5-cc03fbcf8071&live=true
 
 ### Live Algorand Balance by Address
 GET {{baseUrl}}/wallet/balance/live/DSQQXQDGTFAZAU2NYIFKOT7324RHA5DXK4NZ2SUE47S2I5WFYOWMA7RVNA
@@ -237,8 +237,8 @@ GET {{baseUrl}}/investment/positions
 
 ### 11. Get Dashboard Data (Requires Authentication)
 # @name getDashboardData
-GET {{baseUrl}}/dashboard/data
-# Authorization: Bearer {{auth_token}} // Uncomment and replace with token
+GET {{baseUrl}}/dashboard/data?userID=QQISO6R4AHKWVIPK3KA6BVBLVFRHFYVCKN742EQPBB4MGZT3DJDK6XAXDI
+Authorization: Bearer {{auth_token}} // Uncomment and replace with token
 
 
 # --- Educational Components ---

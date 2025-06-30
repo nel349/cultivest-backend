@@ -18,10 +18,19 @@ const usdcAssetId = parseInt(process.env.USDC_ASSET_ID || '10458941'); // USDCa 
 const encryptionKey = process.env.ENCRYPTION_KEY || 'fallback-key-change-in-production';
 
 // Initialize Algorand client
-// For localnet, don't pass the third parameter. For AlgoNode (testnet/mainnet), pass empty string if token is empty
-const algodClient = algodUrl.includes('localhost') 
-  ? new algosdk.Algodv2(algodToken, algodUrl)
-  : new algosdk.Algodv2(algodToken, algodUrl, algodToken ? '' : undefined);
+// For localhost (local development), use the token. For AlgoNode (testnet/mainnet), omit token parameter
+const algodClient = (() => {
+  if (algodUrl.includes('localhost')) {
+    // LocalNet - pass token if available
+    return new algosdk.Algodv2(algodToken, algodUrl);
+  } else if (algodToken && algodToken !== '') {
+    // Remote with token (e.g., PureStake)
+    return new algosdk.Algodv2(algodToken, algodUrl, '443');
+  } else {
+    // AlgoNode (testnet/mainnet) - no token required
+    return new algosdk.Algodv2('', algodUrl);
+  }
+})();
 
 export interface WalletGenerationResult {
   success: boolean;
@@ -306,53 +315,107 @@ export const generateWallet = async (userId: string): Promise<WalletGenerationRe
 };
 
 /**
- * Fund an Algorand wallet using AlgoKit's dispenser pattern
+ * Fund an Algorand wallet - supports both localnet and testnet
  */
 const fundAlgorandWallet = async (algorandAddress: string): Promise<void> => {
   try {
-    // Import AlgorandClient for proper dispenser access
-    const { AlgorandClient } = await import('@algorandfoundation/algokit-utils');
-    const { AlgoAmount } = await import('@algorandfoundation/algokit-utils/types/amount');
+    const network = process.env.ALGORAND_NETWORK || 'testnet';
     
-    // Configure Algorand client same as NFT service
-    const algodConfig = {
-      server: 'http://localhost',
-      port: 4001,
-      token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    };
-    
-    const indexerConfig = {
-      server: 'http://localhost',
-      port: 8980,
-      token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    };
+    if (network === 'localnet') {
+      // Use AlgoKit dispenser for localnet
+      const { AlgorandClient } = await import('@algorandfoundation/algokit-utils');
+      const { AlgoAmount } = await import('@algorandfoundation/algokit-utils/types/amount');
+      
+      const algodConfig = {
+        server: 'http://localhost',
+        port: 4001,
+        token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      };
+      
+      const indexerConfig = {
+        server: 'http://localhost',
+        port: 8980,
+        token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      };
 
-    const algorand = AlgorandClient.fromConfig({
-      algodConfig,
-      indexerConfig,
-    });
-    
-    // Get localnet dispenser account (same as NFT service)
-    const dispenserAccount = await algorand.account.localNetDispenser();
-    
-    console.log(`💰 Funding ${algorandAddress} from localnet dispenser ${dispenserAccount.addr}`);
-    
-    // Send 5 ALGO to the new wallet
-    const fundingAmount = 5000000; // 5 ALGO in microALGO
-    
-    const response = await algorand.send.payment({
-      sender: dispenserAccount.addr.toString(),
-      receiver: algorandAddress,
-      amount: AlgoAmount.MicroAlgos(fundingAmount),
-      signer: dispenserAccount.signer
-    });
+      const algorand = AlgorandClient.fromConfig({
+        algodConfig,
+        indexerConfig,
+      });
+      
+      const dispenserAccount = await algorand.account.localNetDispenser();
+      
+      console.log(`💰 Funding ${algorandAddress} from localnet dispenser ${dispenserAccount.addr}`);
 
-    console.log(`✅ Wallet funded successfully: ${fundingAmount / 1000000} ALGO sent to ${algorandAddress}`);
-    console.log(`💳 Transaction ID: ${response.txIds[0]}`);
+      const _FUNDING_AMOUNT = 10000; // 0.1 ALGO in microALGO
+      
+      const fundingAmount = _FUNDING_AMOUNT; // 0.1 ALGO in microALGO
+      
+      const response = await algorand.send.payment({
+        sender: dispenserAccount.addr.toString(),
+        receiver: algorandAddress,
+        amount: AlgoAmount.MicroAlgos(fundingAmount),
+        signer: dispenserAccount.signer
+      });
+
+      console.log(`✅ Wallet funded successfully: ${fundingAmount / 1000000} ALGO sent to ${algorandAddress}`);
+      console.log(`💳 Transaction ID: ${response.txIds[0]}`);
+      
+    } else if (network === 'testnet') {
+      // For testnet, use a funded dispenser account from environment
+      const dispenserMnemonic = process.env.TESTNET_DISPENSER_MNEMONIC || process.env.DEPLOYER_MNEMONIC;
+      
+      if (!dispenserMnemonic) {
+        console.log(`⚠️ No testnet dispenser account configured. Skipping auto-funding.`);
+        console.log(`💡 To enable auto-funding on testnet, set TESTNET_DISPENSER_MNEMONIC in your .env file`);
+        console.log(`💡 You can fund the wallet manually using the Algorand testnet faucet: https://testnet.algoexplorer.io/dispenser`);
+        return;
+      }
+
+      const dispenserAccount = algosdk.mnemonicToSecretKey(dispenserMnemonic);
+      
+      console.log(`💰 Funding ${algorandAddress} from testnet dispenser ${dispenserAccount.addr}`);
+      
+      // Check dispenser balance first
+      const accountInfo = await algodClient.accountInformation(dispenserAccount.addr).do();
+      const dispenserBalance = Number(accountInfo.amount) / 1000000; // Convert to ALGO
+      
+      if (dispenserBalance < 1) {
+        console.log(`⚠️ Testnet dispenser balance too low: ${dispenserBalance} ALGO`);
+        console.log(`💡 Fund the dispenser account at: https://testnet.algoexplorer.io/dispenser`);
+        return;
+      }
+      
+      // Create and send funding transaction
+      const fundingAmount = 1000000; // 1 ALGO in microALGO for testnet
+      const params = await algodClient.getTransactionParams().do();
+      
+      const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+        sender: dispenserAccount.addr,
+        receiver: algorandAddress,
+        amount: fundingAmount,
+        suggestedParams: params,
+      });
+      
+      const signedTxn = txn.signTxn(dispenserAccount.sk);
+      const txResponse = await algodClient.sendRawTransaction(signedTxn).do();
+      const txId = txResponse.txid;
+      
+      // Wait for confirmation
+      await algosdk.waitForConfirmation(algodClient, txId, 4);
+      
+      console.log(`✅ Wallet funded successfully: ${fundingAmount / 1000000} ALGO sent to ${algorandAddress}`);
+      console.log(`💳 Transaction ID: ${txId}`);
+      
+    } else {
+      console.log(`⚠️ Auto-funding not supported for network: ${network}`);
+      console.log(`💡 For mainnet, users should fund their own wallets`);
+    }
     
   } catch (error) {
     console.error('Auto-funding error:', error);
-    throw error;
+    // Don't throw error - funding failure shouldn't prevent wallet creation
+    console.log(`💡 Manual funding required. Send ALGO to: ${algorandAddress}`);
   }
 };
 
@@ -597,26 +660,56 @@ export const userHasWallet = async (userId: string): Promise<boolean> => {
  */
 export const getAlgorandStatus = async () => {
   try {
+    console.log('🔍 Checking Algorand status...');
+    console.log(`🌐 Network: ${network}`);
+    console.log(`🔗 Algod URL: ${algodUrl}`);
+    console.log(`🔑 Has Token: ${!!algodToken && algodToken !== 'your_algorand_api_key_here'}`);
+    console.log(`📡 Using AlgoNode: ${algodUrl.includes('algonode.cloud')}`);
+    
     // Check if we can connect to Algorand network
     const status = await algodClient.status().do();
+    
+    console.log('✅ Algorand status check successful');
     
     return {
       connected: true,
       network: network,
-      lastRound: status.lastRound,
+      lastRound: Number(status.lastRound), // Convert BigInt to number
       algodUrl: algodUrl,
       usdcAssetId: usdcAssetId,
       hasToken: !!algodToken && algodToken !== 'your_algorand_api_key_here',
-      usingAlgoNode: algodUrl.includes('algonode.cloud')
+      usingAlgoNode: algodUrl.includes('algonode.cloud'),
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        ALGORAND_ALGOD_URL: process.env.ALGORAND_ALGOD_URL ? 'set' : 'not set',
+        ALGORAND_ALGOD_TOKEN: process.env.ALGORAND_ALGOD_TOKEN ? 'set' : 'not set',
+        ALGORAND_NETWORK: process.env.ALGORAND_NETWORK ? 'set' : 'not set',
+        USDC_ASSET_ID: process.env.USDC_ASSET_ID ? 'set' : 'not set'
+      }
     };
   } catch (error) {
+    console.error('❌ Algorand status check failed:', error);
+    console.error('📋 Error details:', {
+      message: (error as Error).message,
+      name: (error as Error).name,
+      stack: (error as Error).stack
+    });
+    
     return {
       connected: false,
       network: network,
       error: (error as Error).message,
       algodUrl: algodUrl,
       usdcAssetId: usdcAssetId,
-      hasToken: !!algodToken && algodToken !== 'your_algorand_api_key_here'
+      hasToken: !!algodToken && algodToken !== 'your_algorand_api_key_here',
+      usingAlgoNode: algodUrl.includes('algonode.cloud'),
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        ALGORAND_ALGOD_URL: process.env.ALGORAND_ALGOD_URL ? 'set' : 'not set',
+        ALGORAND_ALGOD_TOKEN: process.env.ALGORAND_ALGOD_TOKEN ? 'set' : 'not set',
+        ALGORAND_NETWORK: process.env.ALGORAND_NETWORK ? 'set' : 'not set',
+        USDC_ASSET_ID: process.env.USDC_ASSET_ID ? 'set' : 'not set'
+      }
     };
   }
 };

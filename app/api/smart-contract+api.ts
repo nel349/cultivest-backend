@@ -7,20 +7,30 @@ import algosdk from 'algosdk';
 
 const router = express.Router();
 
-// Configure Algorand client
+// Configure Algorand client for testnet/mainnet
 const getAlgorandClient = () => {
-  // For localnet - AlgoKit default configuration
+  const algodUrl = process.env.ALGORAND_ALGOD_URL || 'https://testnet-api.algonode.cloud';
+  const algodToken = process.env.ALGORAND_ALGOD_TOKEN || '';
+  const network = process.env.ALGORAND_NETWORK || 'testnet';
+  
+  // Parse URL to get server and port
+  const url = new URL(algodUrl);
   const algodConfig = {
-    server: 'http://localhost',
-    port: 4001,
-    token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    server: algodUrl,
+    port: url.port ? parseInt(url.port) : (url.protocol === 'https:' ? 443 : 80),
+    token: algodToken,
   };
   
+  // Use Algorand indexer endpoints (AlgoNode provides both)
+  const indexerUrl = algodUrl.replace('algod', 'indexer');
+  const indexerUrlObj = new URL(indexerUrl);
   const indexerConfig = {
-    server: 'http://localhost',
-    port: 8980,
-    token: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    server: indexerUrl,
+    port: indexerUrlObj.port ? parseInt(indexerUrlObj.port) : (indexerUrlObj.protocol === 'https:' ? 443 : 80),
+    token: algodToken,
   };
+
+  console.log(`🌐 Smart Contract API connecting to Algorand ${network}:`, { algodUrl, indexerUrl });
 
   return AlgorandClient.fromConfig({
     algodConfig,

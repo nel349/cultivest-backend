@@ -40,10 +40,10 @@ router.get('/', async (req, res) => {
           positions: portfolioPositions.positions
         };
 
-        // Calculate total invested from positions
+        // Calculate total invested from positions (purchaseValue is already in cents, convert to dollars)
         investmentSummary = {
           totalInvested: portfolioPositions.positions.reduce((sum, pos) => 
-            sum + parseFloat(pos.purchaseValue || '0'), 0) / 100, // Convert from cents
+            sum + (parseFloat(pos.purchaseValue || '0') / 100), 0), // Convert from cents to dollars
           positionCount: portfolioPositions.positionCount,
           hasPortfolio: true
         };
@@ -58,82 +58,76 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Get user's multi-chain investments
-    const { data: bitcoinInvestments } = await supabase
-      .from('investments')
-      .select('*')
-      .eq('user_id', userID)
-      .eq('target_asset', 'BTC')
-      .order('created_at', { ascending: false });
-
-    const { data: solanaInvestments } = await supabase
-      .from('investments')
-      .select('*')
-      .eq('user_id', userID)
-      .eq('target_asset', 'SOL')
-      .order('created_at', { ascending: false });
-
-    const { data: algorandInvestments } = await supabase
-      .from('investments')
-      .select('*')
-      .eq('user_id', userID)
-      .eq('target_asset', 'USDC')
-      .order('created_at', { ascending: false });
-
-    // Get user's multi-chain wallet balance
-    const { data: wallet } = await supabase
-      .from('wallets')
-      .select('bitcoin_balance_satoshis, algorand_balance_microalgos, balance_btc, balance_algo, balance_usdca, balance_sol')
-      .eq('user_id', userID)
-      .single();
-
-    // Calculate total portfolio value
-    const bitcoinTotal = bitcoinInvestments?.reduce((sum, inv) => sum + inv.amount_usd, 0) || 0;
-    const solanaTotal = solanaInvestments?.reduce((sum, inv) => sum + inv.amount_usd, 0) || 0;
-    const algorandTotal = algorandInvestments?.reduce((sum, inv) => sum + inv.amount_usd, 0) || 0;
-    const totalInvestedUSD = bitcoinTotal + solanaTotal + algorandTotal;
-
-    // Get current balances (with fallbacks for older schemas)
-    const currentBalances = {
-      btc: wallet?.balance_btc || (wallet?.bitcoin_balance_satoshis ? wallet.bitcoin_balance_satoshis / 100000000 : 0),
-      algo: wallet?.balance_algo || (wallet?.algorand_balance_microalgos ? wallet.algorand_balance_microalgos / 1000000 : 0),
-      usdca: wallet?.balance_usdca || 0,
-      sol: wallet?.balance_sol || 0
+    // Get user's actual wallet balance using the same function as wallet API
+    const { getUserWallet } = await import('../../../utils/wallet');
+    const walletInfo = await getUserWallet(userID as string, true); // includeLiveBalance = true
+    
+    // Get current wallet balances from live balance
+    const walletBalances = {
+      btc: walletInfo?.onChainBalance?.btc || walletInfo?.balance?.btc || 0,
+      algo: walletInfo?.onChainBalance?.algo || walletInfo?.balance?.algo || 0,
+      usdca: walletInfo?.onChainBalance?.usdca || walletInfo?.balance?.usdca || 0,
+      sol: walletInfo?.onChainBalance?.sol || walletInfo?.balance?.sol || 0
     };
+
+    // Calculate investment totals from NFT positions (primary source of truth)
+    let bitcoinFromPositions = 0;
+    let solanaFromPositions = 0;
+    let algorandFromPositions = 0;
+    let totalInvestedUSD = 0;
+
+    if (portfolioData?.positions) {
+      portfolioData.positions.forEach(position => {
+        const valueInDollars = parseFloat(position.purchaseValue || '0') / 100; // Convert cents to dollars
+        const holdings = parseFloat(position.holdings || '0');
+        
+        if (position.assetTypeName === 'Bitcoin') {
+          bitcoinFromPositions += valueInDollars;
+        } else if (position.assetTypeName === 'Solana') {
+          solanaFromPositions += valueInDollars;
+        } else if (position.assetTypeName === 'USDC' || position.assetTypeName === 'Algorand') {
+          algorandFromPositions += valueInDollars;
+        }
+        
+        totalInvestedUSD += valueInDollars;
+      });
+    }
+
+    // Use investment summary total if available, otherwise calculated total
+    totalInvestedUSD = investmentSummary.totalInvested || totalInvestedUSD;
 
     const dashboardData = {
       userID,
-      balance: totalInvestedUSD || investmentSummary.totalInvested, // Total portfolio value
+      balance: totalInvestedUSD, // Total portfolio value from NFT positions
       dailyYield: 0, // TODO: Calculate from actual yield data
       portfolio: portfolioData,
       investments: {
         bitcoin: {
-          count: bitcoinInvestments?.length || 0,
-          totalInvested: bitcoinTotal,
-          estimatedBTC: bitcoinInvestments?.reduce((sum, inv) => sum + parseFloat(inv.estimated_btc || '0'), 0) || 0,
-          currentBalance: currentBalances.btc
+          count: portfolioData?.positions?.filter(p => p.assetTypeName === 'Bitcoin').length || 0,
+          totalInvested: bitcoinFromPositions,
+          estimatedBTC: portfolioData?.positions
+            ?.filter(p => p.assetTypeName === 'Bitcoin')
+            ?.reduce((sum, pos) => sum + (parseFloat(pos.holdings || '0') / 100000000), 0) || 0 // Convert satoshis to BTC
         },
         solana: {
-          count: solanaInvestments?.length || 0,
-          totalInvested: solanaTotal,
-          estimatedSOL: solanaInvestments?.reduce((sum, inv) => sum + parseFloat(inv.estimated_sol || '0'), 0) || 0,
-          currentBalance: currentBalances.sol
+          count: portfolioData?.positions?.filter(p => p.assetTypeName === 'Solana').length || 0,
+          totalInvested: solanaFromPositions,
+          estimatedSOL: portfolioData?.positions
+            ?.filter(p => p.assetTypeName === 'Solana')
+            ?.reduce((sum, pos) => sum + (parseFloat(pos.holdings || '0') / 1000000000), 0) || 0 // Convert lamports to SOL
         },
         algorand: {
-          count: algorandInvestments?.length || 0,
-          totalInvested: algorandTotal,
-          currentBalance: {
-            algo: currentBalances.algo,
-            usdca: currentBalances.usdca
-          }
+          count: portfolioData?.positions?.filter(p => p.assetTypeName === 'USDC' || p.assetTypeName === 'Algorand').length || 0,
+          totalInvested: algorandFromPositions
         },
         summary: {
           ...investmentSummary,
           totalInvestedUSD,
-          assetCount: (bitcoinInvestments?.length || 0) + (solanaInvestments?.length || 0) + (algorandInvestments?.length || 0)
+          assetCount: portfolioData?.positions?.length || 0
         }
       },
-      balances: currentBalances,
+      // Removed balances section to avoid confusion with investment positions
+      // Users should see their investments, not raw wallet balances
       moneyTree: {
         leaves: Math.min(investmentSummary.positionCount, 10), // Max 10 leaves
         growthStage: totalInvestedUSD > 100 ? 'mature' : 
@@ -143,24 +137,23 @@ router.get('/', async (req, res) => {
         level: Math.floor(totalInvestedUSD / 100) + 1
       },
       analytics: {
-        diversificationScore: (currentBalances.btc > 0 ? 1 : 0) + 
-                             (currentBalances.sol > 0 ? 1 : 0) + 
-                             (currentBalances.algo > 0 || currentBalances.usdca > 0 ? 1 : 0),
-        isMultiChain: (currentBalances.btc > 0 && currentBalances.sol > 0) || 
-                     (currentBalances.btc > 0 && currentBalances.algo > 0) ||
-                     (currentBalances.sol > 0 && currentBalances.algo > 0),
+        diversificationScore: (bitcoinFromPositions > 0 ? 1 : 0) + 
+                             (solanaFromPositions > 0 ? 1 : 0) + 
+                             (algorandFromPositions > 0 ? 1 : 0),
+        isMultiChain: (bitcoinFromPositions > 0 && solanaFromPositions > 0) || 
+                     (bitcoinFromPositions > 0 && algorandFromPositions > 0) ||
+                     (solanaFromPositions > 0 && algorandFromPositions > 0),
         supportedChains: ['Bitcoin', 'Solana', 'Algorand'],
         activeChains: [
-          ...(currentBalances.btc > 0 ? ['Bitcoin'] : []),
-          ...(currentBalances.sol > 0 ? ['Solana'] : []),
-          ...((currentBalances.algo > 0 || currentBalances.usdca > 0) ? ['Algorand'] : [])
+          ...(bitcoinFromPositions > 0 ? ['Bitcoin'] : []),
+          ...(solanaFromPositions > 0 ? ['Solana'] : []),
+          ...(algorandFromPositions > 0 ? ['Algorand'] : [])
         ]
       }
     };
 
     console.log(`✅ Dashboard data compiled for user ${userID}:`, {
       totalInvested: totalInvestedUSD,
-      balances: currentBalances,
       investments: {
         bitcoin: dashboardData.investments.bitcoin.count,
         solana: dashboardData.investments.solana.count,

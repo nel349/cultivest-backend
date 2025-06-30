@@ -5,8 +5,32 @@ import { HelloWorldFactory } from '../artifacts/hello_world/HelloWorldClient'
 export async function deploy() {
   console.log('=== Deploying HelloWorld ===')
 
-  const algorand = AlgorandClient.fromEnvironment()
-  const deployer = await algorand.account.fromEnvironment('DEPLOYER')
+  // Determine target network and configure client accordingly
+  const isLocalNet = process.env.ALGORAND_NETWORK?.includes('localhost') || !process.env.ALGOD_SERVER
+  const isTestNet = process.env.ALGORAND_NETWORK?.includes('testnet')
+  
+  let algorand: AlgorandClient
+  let network: string
+  
+  if (isLocalNet) {
+    algorand = AlgorandClient.fromEnvironment()
+    network = 'localnet'
+  } else if (isTestNet) {
+    algorand = AlgorandClient.testNet()
+    network = 'testnet'
+  } else {
+    algorand = AlgorandClient.mainNet()
+    network = 'mainnet'
+  }
+  
+  console.log(`🌐 Deploying to: ${network}`)
+  console.log(`🔗 Algod server: ${process.env.ALGORAND_NETWORK || 'default-for-' + network}`)
+  
+  // Try AUTHORIZED_MINTER_MNEMONIC first, fallback to DEPLOYER_MNEMONIC
+  const accountEnvVar = process.env.AUTHORIZED_MINTER_MNEMONIC ? 'AUTHORIZED_MINTER' : 'DEPLOYER'
+  const deployer = await algorand.account.fromEnvironment(accountEnvVar)
+  console.log(`📍 Authorized Minter/Deployer address: ${deployer.addr}`)
+  console.log(`📋 Using account from: ${accountEnvVar}_MNEMONIC`)
 
   const factory = algorand.client.getTypedAppFactory(HelloWorldFactory, {
     defaultSender: deployer.addr,
