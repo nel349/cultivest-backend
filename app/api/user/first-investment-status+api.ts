@@ -6,23 +6,23 @@ const router = express.Router();
 // GET /api/user/first-investment-status
 router.get('/', async (req, res) => {
   try {
-    const { userID } = req.query;
+    const { userId } = req.query;
     
     // Validation
-    if (!userID) {
+    if (!userId) {
       return res.status(400).json({
         success: false,
-        error: 'userID query parameter is required'
+        error: 'userId query parameter is required'
       });
     }
 
-    console.log(`🔍 Checking first investment status for user: ${userID}`);
+    console.log(`🔍 Checking first investment status for user: ${userId}`);
     
     // Check user's first investment completion status and celebration viewed status
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('first_investment_completed_at, first_investment_celebration_viewed_at')
-      .eq('user_id', userID)
+      .eq('user_id', userId)
       .single();
 
     if (userError) {
@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
     const { data: investments, error: investmentError } = await supabase
       .from('investments')
       .select('investment_id, is_first_investment, created_at, target_asset, amount_usd')
-      .eq('user_id', userID)
+      .eq('user_id', userId)
       .eq('status', 'completed')
       .order('created_at', { ascending: true });
 
@@ -65,7 +65,7 @@ router.get('/', async (req, res) => {
     const result = {
       success: true,
       data: {
-        userID,
+        userId,
         // New simplified field names to match client expectations
         hasCompleted: hasCompletedFirstInvestment,
         shouldCelebrate: shouldCelebrate,
@@ -89,7 +89,7 @@ router.get('/', async (req, res) => {
       }
     };
 
-    console.log(`✅ First investment status for user ${userID}:`, {
+    console.log(`✅ First investment status for user ${userId}:`, {
       hasCompleted: hasCompletedFirstInvestment,
       totalInvestments: completedInvestmentsCount,
       celebrationViewed: celebrationViewed,

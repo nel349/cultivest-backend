@@ -131,34 +131,35 @@ router.post('/', async (req, res) => {
     console.log(`📱 Sending login OTP for ${phoneNumber}: ${otpCode} (expires at ${expiresAt})`);
     const smsResult = await sendOTPSMS(phoneNumber, otpCode);
     
-    if (!smsResult.success) {
-      console.warn(`⚠️ SMS sending failed: ${smsResult.error}`);
-      
-      // Check if this is a real SMS provider failure or just mock mode
-      const isMockMode = smsResult.provider === 'console' || smsResult.provider === 'mock';
-      
-      if (isMockMode) {
-        // In development/mock mode, continue with console logging
-        return res.json({
-          success: true,
-          message: 'Login OTP generated successfully (Development Mode)',
-          userID: userId,
-          userName: existingUser.name,
-          otpSent: false,
-          smsProvider: smsResult.provider,
-          warning: 'SMS service in development mode - check console for OTP code',
-          developmentMode: true,
-          consoleOTP: otpCode, // Include OTP in response for development
-          otpCode: otpCode // Also include as otpCode for auto-fill
-        });
-      } else {
-        // Real SMS failure - return error to user
-        return res.status(400).json({
-          success: false,
-          error: 'Failed to send OTP SMS. Please try again.',
-          details: smsResult.error
-        });
-      }
+    // Check if this is mock/console mode (either configured as mock or fell back to console)
+    const isMockMode = smsResult.provider === 'console' || smsResult.provider === 'mock';
+    
+    if (!smsResult.success && !isMockMode) {
+      // Real SMS failure from a real provider (not console fallback)
+      console.error(`❌ Real SMS provider failure: ${smsResult.error}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to send OTP SMS. Please try again.',
+        details: smsResult.error
+      });
+    } else if (isMockMode) {
+      // Either configured for mock mode OR fell back to console logging
+      console.log(`📱 Using ${smsResult.provider} mode - OTP logged to console`);
+      return res.json({
+        success: true,
+        message: 'Login OTP generated successfully (Development/Fallback Mode)',
+        userID: userId,
+        userName: existingUser.name,
+        otpSent: false,
+        smsProvider: smsResult.provider,
+        warning: 'SMS service in development/fallback mode - check console for OTP code',
+        developmentMode: true,
+        consoleOTP: otpCode, // Include OTP in response for development
+        otpCode: otpCode // Also include as otpCode for auto-fill
+      });
+    } else {
+      // SMS sent successfully via real provider
+      console.log(`✅ SMS sent via ${smsResult.provider} - MessageID: ${smsResult.messageId}`);
     }
 
     // SMS sent successfully

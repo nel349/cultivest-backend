@@ -1,162 +1,214 @@
 import express from 'express';
 import { userPortfolioService } from '../../../services/user-portfolio.service';
-import { nftContractService } from '../../../services/nft-contract.service';
+import { supabase } from '../../../utils/supabase';
+import { getBitcoinBalance } from '../../../utils/bitcoin';
+import { getSolanaBalance } from '../../../utils/solana';
+import { fetchCryptoPrices } from '../../../utils/crypto-prices';
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const userID = req.query.userID;
+    const { userId } = req.query;
 
-    if (!userID) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    console.log(`📊 Fetching dashboard data for user: ${userID}`);
-
-    // Get user's primary portfolio
-    const userPortfolio = await userPortfolioService.getUserPrimaryPortfolio(userID as string);
-    
-    let portfolioData = null;
-    let investmentSummary = {
-      totalInvested: 0,
-      positionCount: 0,
-      hasPortfolio: false
-    };
-
-    if (userPortfolio) {
-      try {
-        // Get portfolio positions from blockchain
-        const portfolioPositions = await nftContractService.getPortfolioPositions(
-          userID as string, 
-          BigInt(userPortfolio.portfolioTokenId)
-        );
-
-        portfolioData = {
-          tokenId: userPortfolio.portfolioTokenId.toString(),
-          customName: userPortfolio.customName,
-          positionCount: portfolioPositions.positionCount,
-          positions: portfolioPositions.positions
-        };
-
-        // Calculate total invested from positions (purchaseValue is already in cents, convert to dollars)
-        investmentSummary = {
-          totalInvested: portfolioPositions.positions.reduce((sum, pos) => 
-            sum + (parseFloat(pos.purchaseValue || '0') / 100), 0), // Convert from cents to dollars
-          positionCount: portfolioPositions.positionCount,
-          hasPortfolio: true
-        };
-      } catch (portfolioError) {
-        console.error('Error fetching portfolio data:', portfolioError);
-        portfolioData = {
-          tokenId: userPortfolio.portfolioTokenId.toString(),
-          customName: userPortfolio.customName,
-          positionCount: 0,
-          positions: []
-        };
-      }
-    }
-
-    // Calculate investment totals from NFT positions (primary source of truth)
-    let bitcoinFromPositions = 0;
-    let solanaFromPositions = 0;
-    let algorandFromPositions = 0;
-    let totalInvestedUSD = 0;
-
-    if (portfolioData?.positions) {
-      portfolioData.positions.forEach(position => {
-        const valueInDollars = parseFloat(position.purchaseValue || '0') / 100; // Convert cents to dollars
-        
-        if (position.assetTypeName === 'Bitcoin') {
-          bitcoinFromPositions += valueInDollars;
-        } else if (position.assetTypeName === 'Solana') {
-          solanaFromPositions += valueInDollars;
-        } else if (position.assetTypeName === 'USDC' || position.assetTypeName === 'Algorand') {
-          algorandFromPositions += valueInDollars;
-        }
-        
-        totalInvestedUSD += valueInDollars;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'userId query parameter is required'
       });
     }
 
-    // Use investment summary total if available, otherwise calculated total
-    totalInvestedUSD = investmentSummary.totalInvested || totalInvestedUSD;
+    console.log(`📊 Fetching dashboard data for user: ${userId}`);
 
-    const dashboardData = {
-      userID,
-      balance: totalInvestedUSD, // Total portfolio value from NFT positions
-      dailyYield: 0, // TODO: Calculate from actual yield data
-      portfolio: portfolioData,
-      investments: {
-        bitcoin: {
-          count: portfolioData?.positions?.filter(p => p.assetTypeName === 'Bitcoin').length || 0,
-          totalInvested: bitcoinFromPositions,
-          estimatedBTC: portfolioData?.positions
-            ?.filter(p => p.assetTypeName === 'Bitcoin')
-            ?.reduce((sum, pos) => sum + (parseFloat(pos.holdings || '0') / 100000000), 0) || 0 // Convert satoshis to BTC
-        },
-        solana: {
-          count: portfolioData?.positions?.filter(p => p.assetTypeName === 'Solana').length || 0,
-          totalInvested: solanaFromPositions,
-          estimatedSOL: portfolioData?.positions
-            ?.filter(p => p.assetTypeName === 'Solana')
-            ?.reduce((sum, pos) => sum + (parseFloat(pos.holdings || '0') / 1000000000), 0) || 0 // Convert lamports to SOL
-        },
-        algorand: {
-          count: portfolioData?.positions?.filter(p => p.assetTypeName === 'USDC' || p.assetTypeName === 'Algorand').length || 0,
-          totalInvested: algorandFromPositions
-        },
-        summary: {
-          ...investmentSummary,
-          totalInvestedUSD,
-          assetCount: portfolioData?.positions?.length || 0
-        }
+    // Fetch user profile to get basic user data and wallet address if available
+    const { data: userProfile, error: userProfileError } = await supabase
+      .from('users')
+      .select('user_id, email, name, phone_number, algorand_address, solana_address, bitcoin_address, first_investment_completed_at, first_investment_celebration_viewed_at')
+      .eq('user_id', userId)
+      .single();
+
+    if (userProfileError) {
+      console.error('Error fetching user profile:', userProfileError);
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Fetch user's primary portfolio
+    const userPortfolio = await userPortfolioService.getUserPrimaryPortfolio(userId as string);
+
+    // Fetch user's investments
+    const { data: investments, error: investmentsError } = await supabase
+      .from('investments')
+      .select('investment_id, target_asset, amount_usd, status')
+      .eq('user_id', userId);
+
+    if (investmentsError) {
+      console.error('Error fetching investments:', investmentsError);
+    }
+
+    // Fetch user's wallets
+    const { error: walletsError } = await supabase
+      .from('wallets')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (walletsError) {
+      console.error('Error fetching wallets:', walletsError);
+    }
+
+    // Aggregate investment data
+    const completedInvestments = investments?.filter(inv => inv.status === 'completed') || [];
+    const totalInvestedUSD = completedInvestments.reduce((sum, inv) => sum + inv.amount_usd, 0);
+
+    // Calculate Bitcoin, Algorand, Solana specific investment counts and totals
+    const bitcoinInvestments = completedInvestments.filter(inv => inv.target_asset === 'BTC');
+    const algorandInvestments = completedInvestments.filter(inv => inv.target_asset === 'ALGO' || inv.target_asset === 'USDC');
+    const solanaInvestments = completedInvestments.filter(inv => inv.target_asset === 'SOL');
+
+    const investmentSummary = {
+      bitcoin: {
+        count: bitcoinInvestments.length,
+        totalInvested: bitcoinInvestments.reduce((sum, inv) => sum + inv.amount_usd, 0),
+        estimatedBTC: 0, // Will be updated with live balance
+        currentBalance: 0, // Will be updated with live balance
       },
-      // Removed balances section to avoid confusion with investment positions
-      // Users should see their investments, not raw wallet balances
-      moneyTree: {
-        leaves: Math.min(investmentSummary.positionCount, 10), // Max 10 leaves
-        growthStage: totalInvestedUSD > 100 ? 'mature' : 
-                    totalInvestedUSD > 10 ? 'growing' : 'seedling',
-        nextMilestone: totalInvestedUSD < 10 ? 10.00 : 
-                      totalInvestedUSD < 100 ? 100.00 : 1000.00,
-        level: Math.floor(totalInvestedUSD / 100) + 1
+      solana: {
+        count: solanaInvestments.length,
+        totalInvested: solanaInvestments.reduce((sum, inv) => sum + inv.amount_usd, 0),
+        estimatedSOL: 0, // Will be updated with live balance
+        currentBalance: 0, // Will be updated with live balance
+      },
+      algorand: {
+        count: algorandInvestments.length,
+        totalInvested: algorandInvestments.reduce((sum, inv) => sum + inv.amount_usd, 0),
+        currentBalance: {
+          algo: 0, // Will be updated with live balance
+          usdca: 0, // Will be updated with live balance
+        },
+      },
+      summary: {
+        totalInvested: totalInvestedUSD,
+        positionCount: completedInvestments.length,
+        hasPortfolio: !!userPortfolio,
+        totalInvestedUSD,
+        assetCount: new Set(completedInvestments.map(inv => inv.target_asset)).size,
+      },
+    };
+
+    // Fetch live wallet balances from chains/services
+    let btcBalance = 0;
+    if (userProfile.bitcoin_address) {
+      try {
+        btcBalance = await getBitcoinBalance(userProfile.bitcoin_address);
+      } catch (e) {
+        console.error(`Error fetching BTC balance for ${userProfile.bitcoin_address}:`, e);
+      }
+    }
+
+    let algoBalance = 0; // Set to 0 as algorand.ts is not found
+    let usdcaBalance = 0; // Set to 0 as algorand.ts is not found
+    // if (userProfile.algorand_address) {
+    //   try {
+    //     const algoBalances = await getAlgorandAccountBalance(userProfile.algorand_address);
+    //     algoBalance = algoBalances.algo;
+    //     usdcaBalance = algoBalances.usdca;
+    //   } catch (e) {
+    //     console.error(`Error fetching ALGO/USDCa balance for ${userProfile.algorand_address}:`, e);
+    //   }
+    // }
+
+    let solBalance = 0;
+    if (userProfile.solana_address) {
+      try {
+        solBalance = await getSolanaBalance(userProfile.solana_address);
+      } catch (e) {
+        console.error(`Error fetching SOL balance for ${userProfile.solana_address}:`, e);
+      }
+    }
+
+    // Fetch current crypto prices
+    const cryptoPrices = await fetchCryptoPrices(); // Corrected function call
+    const btcPrice = cryptoPrices.bitcoin || 0;
+    const algoPrice = cryptoPrices.algorand || 0;
+    const solPrice = cryptoPrices.solana || 0;
+
+    // Update estimated values with live balances and prices
+    investmentSummary.bitcoin.estimatedBTC = btcBalance;
+    investmentSummary.bitcoin.currentBalance = btcBalance * btcPrice;
+    investmentSummary.solana.estimatedSOL = solBalance;
+    investmentSummary.solana.currentBalance = solBalance * solPrice;
+    investmentSummary.algorand.currentBalance.algo = algoBalance;
+    investmentSummary.algorand.currentBalance.usdca = usdcaBalance;
+
+    const totalPortfolioValue = (investmentSummary.bitcoin.currentBalance || 0) +
+                                (investmentSummary.solana.currentBalance || 0) +
+                                (investmentSummary.algorand.currentBalance.algo * algoPrice) +
+                                (investmentSummary.algorand.currentBalance.usdca || 0);
+
+    const responseData = {
+      userId,
+      balance: totalPortfolioValue,
+      dailyYield: 0, // Placeholder, calculate from actual yield data
+      portfolio: userPortfolio || null,
+      investments: investmentSummary,
+      balances: {
+        btc: btcBalance,
+        algo: algoBalance,
+        usdca: usdcaBalance,
+        sol: solBalance,
+      },
+      moneyTree: { // Placeholder for money tree growth
+        leaves: 0,
+        growthStage: 'seedling',
+        nextMilestone: 10,
+        level: 1,
       },
       analytics: {
-        diversificationScore: (bitcoinFromPositions > 0 ? 1 : 0) + 
-                             (solanaFromPositions > 0 ? 1 : 0) + 
-                             (algorandFromPositions > 0 ? 1 : 0),
-        isMultiChain: (bitcoinFromPositions > 0 && solanaFromPositions > 0) || 
-                     (bitcoinFromPositions > 0 && algorandFromPositions > 0) ||
-                     (solanaFromPositions > 0 && algorandFromPositions > 0),
+        diversificationScore: 0, // Placeholder
+        isMultiChain: new Set([
+          ...(btcBalance > 0 ? ['BTC'] : []),
+          ...(algoBalance > 0 || usdcaBalance > 0 ? ['ALGO'] : []),
+          ...(solBalance > 0 ? ['SOL'] : []),
+        ]).size > 1,
         supportedChains: ['Bitcoin', 'Solana', 'Algorand'],
         activeChains: [
-          ...(bitcoinFromPositions > 0 ? ['Bitcoin'] : []),
-          ...(solanaFromPositions > 0 ? ['Solana'] : []),
-          ...(algorandFromPositions > 0 ? ['Algorand'] : [])
-        ]
+          ...(btcBalance > 0 ? ['Bitcoin'] : []),
+          ...(algoBalance > 0 || usdcaBalance > 0 ? ['Algorand'] : []),
+          ...(solBalance > 0 ? ['Solana'] : []),
+        ],
+      },
+      userProfile: { // Include basic user profile info
+        userId: userProfile.user_id,
+        name: userProfile.name,
+        email: userProfile.email,
+        phoneNumber: userProfile.phone_number,
+        algorandAddress: userProfile.algorand_address,
+        solanaAddress: userProfile.solana_address,
+        bitcoinAddress: userProfile.bitcoin_address,
+        firstInvestmentCompletedAt: userProfile.first_investment_completed_at,
+        firstInvestmentCelebrationViewedAt: userProfile.first_investment_celebration_viewed_at,
       }
     };
 
-    console.log(`✅ Dashboard data compiled for user ${userID}:`, {
-      totalInvested: totalInvestedUSD,
-      investments: {
-        bitcoin: dashboardData.investments.bitcoin.count,
-        solana: dashboardData.investments.solana.count,
-        algorand: dashboardData.investments.algorand.count
-      }
+    console.log(`✅ Dashboard data compiled for user ${userId}:`, {
+      totalPortfolioValue: responseData.balance,
+      investmentSummary: responseData.investments.summary,
+      liveBalances: responseData.balances,
     });
 
     return res.json({
       success: true,
-      data: dashboardData
+      data: responseData
     });
 
   } catch (error) {
-    console.error('Dashboard data endpoint error:', error);
-    return res.status(500).json({ 
+    console.error('❌ Dashboard data error:', error);
+    return res.status(500).json({
       success: false,
-      error: 'Internal server error' 
+      error: 'Failed to get dashboard data',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });

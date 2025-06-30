@@ -98,12 +98,26 @@ export const sendOTPSMS = async (
   } catch (error) {
     console.error('❌ SMS sending failed:', error);
     
-    // Log the OTP to console as fallback
-    console.log('📱 FALLBACK - Logging OTP to console due to SMS failure:');
+    // Check if this is a Twilio limitation error (trial account restrictions)
+    const twilioError = error as any;
+    const isTwilioLimitError = twilioError.code === 21608 || // Unverified number
+                               twilioError.code === 63038 || // Daily limit exceeded
+                               twilioError.status === 400 ||  // Bad request (trial limitations)
+                               twilioError.status === 429;    // Rate limit exceeded
+    
+    if (isTwilioLimitError) {
+      console.log('📱 TWILIO LIMITATION - Falling back to console logging:');
+    } else {
+      console.log('📱 FALLBACK - Logging OTP to console due to SMS failure:');
+    }
+    
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`📞 TO: ${phoneNumber}`);
     console.log(`🔢 OTP: ${otpCode}`);
     console.log(`❌ ERROR: ${(error as Error).message}`);
+    if (isTwilioLimitError) {
+      console.log(`💡 TIP: This is a Twilio trial account limitation, not a code error`);
+    }
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     
     return {
