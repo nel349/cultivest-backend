@@ -1146,6 +1146,12 @@ async function insertInvestmentRecord(params: {
       .single();
 
     if (error) {
+      // If unique constraint violation, try to find existing record
+      if (error.code === '23505') { // Unique constraint violation
+        console.log('🔄 Investment already exists during insert, finding existing record for:', moonpayTransactionId);
+        return await findInvestment(moonpayTransactionId);
+      }
+      
       console.error('Error inserting investment:', error);
       return null;
     }
