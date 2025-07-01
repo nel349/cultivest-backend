@@ -9,12 +9,13 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { userId } = req.query;
+    // Accept both userId and userID for backward compatibility
+    const userId = req.query.userId || req.query.userID;
 
     if (!userId) {
       return res.status(400).json({
         success: false,
-        error: 'userId query parameter is required'
+        error: 'userId or userID query parameter is required'
       });
     }
 
